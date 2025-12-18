@@ -298,25 +298,21 @@ const BookingDetail = () => {
                     )}
                 </div>
             </div>
+            {/* Reschedule Modal */}
+            {showRescheduleModal && booking && (
+                <RescheduleModal
+                    bookingId={booking._id}
+                    currentDate={booking.date}
+                    currentTime={booking.time}
+                    providerId={booking.provider?._id || ''}
+                    onClose={() => setShowRescheduleModal(false)}
+                    onSuccess={() => {
+                        toast.success('Booking rescheduled successfully!');
+                        setShowRescheduleModal(false);
+                    }}
+                />
+            )}
         </div>
-
-        {/* Reschedule Modal */ }
-    {
-        showRescheduleModal && booking && (
-            <RescheduleModal
-                bookingId={booking._id}
-                currentDate={booking.date}
-                currentTime={booking.time}
-                providerId={booking.provider?._id || ''}
-                onClose={() => setShowRescheduleModal(false)}
-                onSuccess={() => {
-                    toast.success('Booking rescheduled successfully!');
-                    setShowRescheduleModal(false);
-                }}
-            />
-        )
-    }
-    </div >
     );
 };
 
