@@ -1,56 +1,24 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, MessageSquare, Star, Wallet, CheckCheck } from "lucide-react";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const Notifications = () => {
   const navigate = useNavigate();
+  const { data: notificationsData, isLoading } = useNotifications();
 
-  const notifications = [
-    {
-      id: 1,
-      type: "booking",
-      icon: Calendar,
-      title: "Booking Confirmed",
-      message: "Your cleaning service with Chioma is confirmed for tomorrow at 10:00 AM",
-      time: "2 hours ago",
-      read: false,
-    },
-    {
-      id: 2,
-      type: "message",
-      icon: MessageSquare,
-      title: "New Message",
-      message: "Emeka sent you a message about your plumbing request",
-      time: "5 hours ago",
-      read: false,
-    },
-    {
-      id: 3,
-      type: "payment",
-      icon: Wallet,
-      title: "Payment Received",
-      message: "₦8,000 has been added to your wallet",
-      time: "1 day ago",
-      read: true,
-    },
-    {
-      id: 4,
-      type: "review",
-      icon: Star,
-      title: "New Review",
-      message: "Samuel left you a 5-star review. Great job!",
-      time: "2 days ago",
-      read: true,
-    },
-    {
-      id: 5,
-      type: "booking",
-      icon: CheckCheck,
-      title: "Service Completed",
-      message: "Your electrical repair service has been marked as completed",
-      time: "3 days ago",
-      read: true,
-    },
-  ];
+  const notifications = notificationsData?.data || [];
+
+  // Map notification types to icons
+  const getNotificationIcon = (type: string) => {
+    const iconMap: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+      'booking': Calendar,
+      'message': MessageSquare,
+      'payment': Wallet,
+      'review': Star,
+      'system': CheckCheck
+    };
+    return iconMap[type] || Calendar; // Default to Calendar if type not found
+  };
 
   return (
     <div className="min-h-screen bg-background pb-6">
@@ -71,44 +39,62 @@ const Notifications = () => {
 
       {/* Notifications List */}
       <div className="px-6 pt-4 space-y-3">
-        {notifications.map((notification) => {
-          const Icon = notification.icon;
-          return (
-            <button
-              key={notification.id}
-              className={`w-full p-4 rounded-2xl border transition-smooth text-left ${
-                notification.read
-                  ? "bg-card border-border"
-                  : "bg-accent/5 border-accent/20"
-              }`}
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, index) => (
+            <div
+              key={index}
+              className="w-full p-4 rounded-2xl border border-border bg-card animate-pulse"
             >
               <div className="flex gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  notification.read ? "bg-muted" : "gradient-primary"
-                }`}>
-                  <Icon className={`w-6 h-6 ${notification.read ? "text-muted-foreground" : "text-white"}`} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="font-semibold text-foreground">{notification.title}</h3>
-                    {!notification.read && (
-                      <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-1.5" />
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                    {notification.message}
-                  </p>
-                  <span className="text-xs text-muted-foreground">{notification.time}</span>
+                <div className="w-12 h-12 rounded-xl bg-muted flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded w-3/4"></div>
+                  <div className="h-3 bg-muted rounded w-full"></div>
+                  <div className="h-3 bg-muted rounded w-1/2"></div>
                 </div>
               </div>
-            </button>
-          );
-        })}
+            </div>
+          ))
+        ) : (
+          notifications.map((notification) => {
+            const Icon = getNotificationIcon(notification.type);
+            return (
+              <button
+                key={notification._id || notification.id}
+                className={`w-full p-4 rounded-2xl border transition-smooth text-left ${
+                  notification.read
+                    ? "bg-card border-border"
+                    : "bg-accent/5 border-accent/20"
+                }`}
+              >
+                <div className="flex gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    notification.read ? "bg-muted" : "gradient-primary"
+                  }`}>
+                    <Icon className={`w-6 h-6 ${notification.read ? "text-muted-foreground" : "text-white"}`} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="font-semibold text-foreground">{notification.title}</h3>
+                      {!notification.read && (
+                        <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-1.5" />
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                      {notification.message || notification.content}
+                    </p>
+                    <span className="text-xs text-muted-foreground">{new Date(notification.createdAt || notification.date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        )}
       </div>
 
       {/* Empty State (if no notifications) */}
-      {notifications.length === 0 && (
+      {!isLoading && notifications.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 px-6">
           <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mb-4">
             <Calendar className="w-10 h-10 text-muted-foreground" />

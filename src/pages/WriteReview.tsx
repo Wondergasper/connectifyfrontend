@@ -4,20 +4,45 @@ import { ArrowLeft, Star } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 const WriteReview = () => {
     const navigate = useNavigate();
     const { id } = useParams();
     const [rating, setRating] = useState(0);
     const [review, setReview] = useState("");
+    const queryClient = useQueryClient();
+
+    // Submit review mutation
+    const { mutate: submitReview, isPending } = useMutation({
+        mutationFn: (reviewData: { rating: number; comment: string }) =>
+            api.bookings.addRating(id!, reviewData),
+        onSuccess: () => {
+            toast.success("Review submitted successfully!");
+            // Invalidate related queries to update ratings
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['booking', id] });
+            queryClient.invalidateQueries({ queryKey: ['service'] }); // This will refresh any service queries
+            navigate(-1);
+        },
+        onError: (error: Error) => {
+            console.error("Failed to submit review:", error);
+            toast.error(error.message || "Failed to submit review. Please try again.");
+        }
+    });
 
     const handleSubmit = () => {
         if (rating === 0) {
             toast.error("Please select a rating");
             return;
         }
-        toast.success("Review submitted successfully!");
-        navigate(-1);
+        if (!review.trim()) {
+            toast.error("Please write a review");
+            return;
+        }
+
+        submitReview({ rating, comment: review });
     };
 
     return (
@@ -31,7 +56,7 @@ const WriteReview = () => {
                 </button>
                 <div className="text-center text-white">
                     <h1 className="text-3xl font-bold mb-2">Write a Review</h1>
-                    <p className="text-white/80">How was your experience with Chioma?</p>
+                    <p className="text-white/80">How was your experience?</p>
                 </div>
             </div>
 
@@ -43,6 +68,7 @@ const WriteReview = () => {
                                 key={star}
                                 onClick={() => setRating(star)}
                                 className="transition-transform hover:scale-110 focus:outline-none"
+                                disabled={isPending}
                             >
                                 <Star
                                     className={`w-10 h-10 ${star <= rating
@@ -69,14 +95,23 @@ const WriteReview = () => {
                             className="min-h-[150px] rounded-2xl bg-muted/30 border-border/50 focus:bg-background transition-smooth resize-none p-4 text-base"
                             value={review}
                             onChange={(e) => setReview(e.target.value)}
+                            disabled={isPending}
                         />
                     </div>
 
                     <Button
                         onClick={handleSubmit}
-                        className="w-full h-12 rounded-xl gradient-primary border-0 font-bold shadow-medium hover:shadow-strong hover:scale-[1.02] transition-all"
+                        disabled={isPending || rating === 0}
+                        className="w-full h-12 rounded-xl gradient-primary border-0 font-bold shadow-medium hover:shadow-strong hover:scale-[1.02] transition-all disabled:opacity-70"
                     >
-                        Submit Review
+                        {isPending ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                                Submitting...
+                            </>
+                        ) : (
+                            "Submit Review"
+                        )}
                     </Button>
                 </div>
             </div>

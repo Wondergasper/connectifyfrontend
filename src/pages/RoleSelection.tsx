@@ -2,18 +2,37 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { User, Briefcase, CheckCircle } from "lucide-react";
+import { useUpdateRole } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 type Role = "customer" | "provider" | null;
 
 const RoleSelection = () => {
   const [selectedRole, setSelectedRole] = useState<Role>(null);
   const navigate = useNavigate();
+  const { mutate: updateRole, isPending } = useUpdateRole();
 
   const handleContinue = () => {
-    if (selectedRole === "customer") {
-      navigate("/customer-onboarding");
-    } else if (selectedRole === "provider") {
-      navigate("/provider-onboarding");
+    if (selectedRole) {
+      updateRole(selectedRole, {
+        onSuccess: () => {
+          if (selectedRole === "customer") {
+            navigate("/customer-onboarding");
+          } else if (selectedRole === "provider") {
+            navigate("/provider-onboarding");
+          }
+        },
+        onError: (error: unknown) => {
+          console.error("Failed to update role:", error);
+          // Still allow navigation even if role update fails
+          if (selectedRole === "customer") {
+            navigate("/customer-onboarding");
+          } else if (selectedRole === "provider") {
+            navigate("/provider-onboarding");
+          }
+          toast.error("Failed to save your role selection, but you can continue");
+        }
+      });
     }
   };
 
@@ -107,10 +126,10 @@ const RoleSelection = () => {
       <div className="px-6 pb-8">
         <Button
           onClick={handleContinue}
-          disabled={!selectedRole}
+          disabled={!selectedRole || isPending}
           className="w-full h-14 text-base font-semibold gradient-primary border-0 hover:opacity-90 transition-smooth shadow-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue
+          {isPending ? "Saving..." : "Continue"}
         </Button>
       </div>
     </div>

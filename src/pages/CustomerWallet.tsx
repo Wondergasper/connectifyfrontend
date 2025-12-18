@@ -2,49 +2,44 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowUpRight, Plus, Wallet as WalletIcon, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-
-// Mock transaction data
-const transactions = [
-  {
-    id: 1,
-    type: "debit",
-    title: "Payment Made",
-    subtitle: "House Cleaning - Chioma Nwosu",
-    amount: "-₦8,000",
-    date: "Today, 2:45 PM",
-    icon: ArrowUpRight,
-  },
-  {
-    id: 2,
-    type: "credit",
-    title: "Wallet Top-up",
-    subtitle: "Via Paystack",
-    amount: "+₦50,000",
-    date: "Yesterday, 11:30 AM",
-    icon: Plus,
-  },
-  {
-    id: 3,
-    type: "debit",
-    title: "Payment Made",
-    subtitle: "Plumbing - Ibrahim Musa",
-    amount: "-₦12,000",
-    date: "Dec 12, 4:20 PM",
-    icon: ArrowUpRight,
-  },
-  {
-    id: 4,
-    type: "credit",
-    title: "Refund Received",
-    subtitle: "Cancelled Service",
-    amount: "+₦5,000",
-    date: "Dec 11, 9:15 AM",
-    icon: Plus,
-  },
-];
+import { useWalletBalance, useWalletTransactions } from "@/hooks/useWallet";
 
 const CustomerWallet = () => {
   const navigate = useNavigate();
+
+  // Fetch wallet data from API
+  const { data: walletBalance, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
+  const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useWalletTransactions();
+
+  // Fallback to mock icons since they're not in API
+  const getTransactionIcon = (type: string) => {
+    return type === "credit" ? Plus : ArrowUpRight;
+  };
+
+  // Show loading state while fetching data
+  if (balanceLoading || transactionsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-muted-foreground">Loading wallet data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (balanceError || transactionsError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Error Loading Wallet</h2>
+          <p className="text-muted-foreground mb-4">Failed to load your wallet data. Please try again later.</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleTopUp = () => {
     navigate("/wallet/add-funds");
@@ -76,7 +71,7 @@ const CustomerWallet = () => {
         </button>
         <div className="text-center text-white mb-6">
           <p className="text-white/80 text-sm mb-1">My Wallet</p>
-          <h1 className="text-5xl font-bold mb-1 animate-fade-in">₦45,000</h1>
+          <h1 className="text-5xl font-bold mb-1 animate-fade-in">{walletBalance?.balance ? `₦${walletBalance.balance.toLocaleString()}` : '₦0'}</h1>
           <p className="text-xs opacity-75">Ready for your next booking</p>
         </div>
 
@@ -129,6 +124,38 @@ const CustomerWallet = () => {
         </div>
       </div>
 
+      {/* Quick Stats */}
+      <div className="px-6 py-6 grid grid-cols-2 gap-3">
+        <div className="bg-card rounded-2xl p-4 shadow-soft border border-border">
+          <div className="text-sm text-muted-foreground mb-1">This Month</div>
+          <div className="text-2xl font-bold text-foreground">₦{
+            (Array.isArray(transactions?.data) && transactions.data.slice(0, 3).reduce((sum, tx) => sum + (tx.type === 'debit' ? -Math.abs(tx.amount || 0) : Math.abs(tx.amount || 0)), 0) || 0).toLocaleString()
+          }</div>
+          <div className="text-xs text-muted-foreground mt-1">{Array.isArray(transactions?.data) ? transactions.data.length : 0} transactions</div>
+        </div>
+        <div className="bg-card rounded-2xl p-4 shadow-soft border border-border">
+          <div className="text-sm text-muted-foreground mb-1">Total Saved</div>
+          <div className="text-2xl font-bold text-foreground">₦8,750</div>
+          <div className="text-xs text-accent font-medium mt-1">via discounts</div>
+        </div>
+      </div>
+
+      {/* Quick Top‑up */}
+      <div className="px-6 pb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Quick Top‑up</h2>
+        <div className="grid grid-cols-3 gap-3">
+          {['₦5,000', '₦10,000', '₦20,000'].map((amount) => (
+            <button
+              key={amount}
+              onClick={() => handleQuickTopUp(amount)}
+              className="bg-card rounded-2xl p-4 shadow-soft border border-border hover:shadow-medium hover:border-primary/30 transition-smooth"
+            >
+              <div className="text-xl font-bold text-foreground">{amount}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Transactions */}
       <div className="px-6 pb-6">
         <div className="flex items-center justify-between mb-4">
@@ -141,26 +168,35 @@ const CustomerWallet = () => {
           </button>
         </div>
         <div className="space-y-2">
-          {transactions.map((tx) => (
-            <div
-              key={tx.id}
-              className="bg-card rounded-2xl p-4 shadow-soft border border-border flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
+          {Array.isArray(transactions?.data) && transactions.data.length > 0 ? (
+            transactions.data.slice(0, 4).map((tx, index) => {
+              const Icon = getTransactionIcon(tx.type);
+              return (
                 <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"}`}
+                  key={tx.id || index}
+                  className="bg-card rounded-2xl p-4 shadow-soft border border-border flex items-center justify-between"
                 >
-                  <tx.icon className="w-5 h-5" />
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"}`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground text-sm">{tx.description || tx.type}</h3>
+                      <p className="text-xs text-muted-foreground truncate">{tx.serviceName || tx.providerName || tx.source}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{new Date(tx.date || tx.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className={`text-right font-semibold ${tx.type === "credit" ? "text-accent" : "text-foreground"}`}>{tx.type === 'credit' ? '+' : '-'}₦{tx.amount?.toLocaleString() || 0}</div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground text-sm">{tx.title}</h3>
-                  <p className="text-xs text-muted-foreground truncate">{tx.subtitle}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{tx.date}</p>
-                </div>
-              </div>
-              <div className={`text-right font-semibold ${tx.type === "credit" ? "text-accent" : "text-foreground"}`}>{tx.amount}</div>
+              );
+            })
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No transactions yet. Your transactions will appear here.
             </div>
-          ))}
+          )}
         </div>
       </div>
 

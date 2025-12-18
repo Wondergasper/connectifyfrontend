@@ -1,17 +1,214 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate } from "react-router-dom";
-import { Mail, Lock, User, Phone } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { Mail, Lock, User, Phone, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { z } from 'zod';
+import { loginSchema, registerSchema } from '@/lib/validationSchemas';
+import { LoginRequest, RegisterRequest } from '@/lib/apiTypes';
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const userType = searchParams.get('type'); // 'customer' or 'provider'
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',     // For registration
+    emailOrPhone: '', // For login (email or phone in one field)
+    phone: '',
+    password: ''
+  });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const validateForm = () => {
+    setErrors({});
+    try {
+      if (isLogin) {
+        loginSchema.parse({
+          emailOrPhone: formData.emailOrPhone,
+          password: formData.password
+        });
+      } else {
+        registerSchema.parse({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          password: formData.password
+        });
+      }
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as string] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        toast.error('Please fix the validation errors');
+      }
+      return false;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/role");
+
+    // Validate form before submitting
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        // For login, determine if the input is email or phone
+        // Sanitize the input to remove extra whitespace and normalize
+        const trimmedInput = formData.emailOrPhone.replace(/\s+/g, ' ').trim();
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedInput);
+        const loginData: { email?: string; phone?: string; password: string } = {
+          password: formData.password.replace(/\s+/g, ' ').trim()
+        };
+
+        if (isEmail) {
+          loginData.email = trimmedInput;
+        } else {
+          // Format phone number for consistent API requests
+          // Remove any non-digit characters except +
+          let phone = trimmedInput.replace(/[^\d+]/g, '');
+
+          // If it starts with '0', replace with +234 for Nigerian numbers
+          if (phone.startsWith('0')) {
+            phone = '+234' + phone.substring(1);
+          } else if (phone.startsWith('234') && !phone.startsWith('+234')) {
+            phone = '+' + phone;
+          } else if (!phone.startsWith('+')) {
+            // If no country code and not starting with 0, assume it's a short format
+            // For Nigeria, we might want to prepend country code, but this depends on requirements
+          }
+
+          loginData.phone = phone;
+        }
+
+        // Log the data being sent for debugging
+        console.log('Sending login request with data:', loginData);
+
+        // Call login API
+        const response = await api.auth.login(loginData);
+
+        console.log('Login successful:', response);
+        toast.success('Login successful!');
+
+        // Check if user already has a role and redirect appropriately
+        // The response structure is: { success: true, data: { user: {...} } }
+        const userRole = response?.data?.user?.role;
+        console.log('User role from response:', userRole);
+
+        // Give a longer delay to ensure cookies are fully set
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // CRITICAL: Set the user data directly in React Query cache
+        // This is BETTER than invalidating because:
+        // 1. No extra API call needed (avoids 401 errors)
+        // 2. No risk of cookies not being set yet
+        // 3. Immediate update to AuthContext
+        console.log('📦 Setting user data in cache...');
+        queryClient.setQueryData(['profile'], {
+          success: true,
+          data: {
+            user: response.data.user
+          }
+        });
+
+        console.log('✅ Cache updated with user data');
+
+        // Determine redirect path
+        let redirectPath = '/role'; // Default for users without role
+        if (userRole === 'customer') {
+          redirectPath = '/customer';
+        } else if (userRole === 'provider') {
+          redirectPath = '/provider';
+        }
+
+        console.log('🔄 Redirecting to:', redirectPath);
+
+        // Use replace to prevent going back to login page
+        navigate(redirectPath, { replace: true });
+
+        console.log('✅ Navigate called, should redirect now...');
+      } else {
+        // Sanitize inputs for registration
+        const sanitizedName = formData.name.replace(/\s+/g, ' ').trim();
+        const sanitizedEmail = formData.email.replace(/\s+/g, ' ').trim();
+        const sanitizedPassword = formData.password.replace(/\s+/g, ' ').trim();
+        let formattedPhone = formData.phone.replace(/\s+/g, ' ').trim().replace(/[^\d+]/g, '');
+
+        // Format Nigerian phone numbers
+        if (formattedPhone.startsWith('0')) {
+          formattedPhone = '+234' + formattedPhone.substring(1);
+        } else if (formattedPhone.startsWith('234') && !formattedPhone.startsWith('+234')) {
+          formattedPhone = '+' + formattedPhone;
+        }
+
+        // Call register API - both email and phone are required for registration
+        const response = await api.auth.register({
+          name: sanitizedName,
+          email: sanitizedEmail,
+          phone: formattedPhone,
+          password: sanitizedPassword
+        });
+
+        console.log('Registration successful:', response);
+        toast.success('Registration successful!');
+        navigate("/role");
+      }
+    } catch (error: unknown) {
+      console.error('Auth error:', error);
+      let errorMessage = 'Authentication failed';
+
+      // For fetch API errors, error.message contains the error from api.ts
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = 'Authentication failed. Please check your credentials.';
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    // Map the 'email' field id to 'emailOrPhone' during login, keep separate during registration
+    const fieldId = (isLogin && id === 'email') ? 'emailOrPhone' : id;
+
+    // Clear the error for this field when user types
+    if (errors[fieldId]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldId];
+        return newErrors;
+      });
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      [fieldId]: value
+    }));
   };
 
   return (
@@ -24,25 +221,36 @@ const Auth = () => {
       {/* Form Container */}
       <div className="flex-1 flex items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm animate-fade-in">
+          {/* Show user type indicator if coming from CTA */}
+          {userType && !isLogin && (
+            <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/20">
+              <p className="text-sm text-center text-foreground">
+                {userType === 'customer' ? (
+                  <>🎯 <strong>Signing up as a Customer</strong> - Book services & connect with providers</>
+                ) : (
+                  <>💼 <strong>Signing up as a Provider</strong> - Offer your services & grow your business</>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* Toggle */}
           <div className="flex gap-2 mb-8 p-1 bg-muted rounded-xl">
             <button
               onClick={() => setIsLogin(true)}
-              className={`flex-1 py-3 rounded-lg text-sm font-medium transition-smooth ${
-                isLogin
-                  ? "bg-card text-foreground shadow-soft"
-                  : "text-muted-foreground"
-              }`}
+              className={`flex-1 py-3 rounded-lg text-sm font-medium transition-smooth ${isLogin
+                ? "bg-card text-foreground shadow-soft"
+                : "text-muted-foreground"
+                }`}
             >
               Login
             </button>
             <button
               onClick={() => setIsLogin(false)}
-              className={`flex-1 py-3 rounded-lg text-sm font-medium transition-smooth ${
-                !isLogin
-                  ? "bg-card text-foreground shadow-soft"
-                  : "text-muted-foreground"
-              }`}
+              className={`flex-1 py-3 rounded-lg text-sm font-medium transition-smooth ${!isLogin
+                ? "bg-card text-foreground shadow-soft"
+                : "text-muted-foreground"
+                }`}
             >
               Sign Up
             </button>
@@ -60,26 +268,50 @@ const Auth = () => {
                   <Input
                     id="name"
                     type="text"
+                    value={formData.name}
+                    onChange={handleChange}
                     placeholder="Samuel Adebayo"
-                    className="pl-11 h-12 border-border focus:ring-2 focus:ring-primary/20 bg-card"
+                    className={`pl-11 h-12 ${errors.name ? 'border-destructive focus:ring-destructive/20' : 'border-border'} focus:ring-2 focus:ring-primary/20 bg-card`}
+                    required={!isLogin}
                   />
                 </div>
+                {errors.name && (
+                  <div className="flex items-center gap-1 text-destructive text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{errors.name}</span>
+                  </div>
+                )}
               </div>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium text-foreground">
-                Email Address
+                {isLogin ? "Email or Phone" : "Email Address"}
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  className="pl-11 h-12 border-border focus:ring-2 focus:ring-primary/20 bg-card"
+                  type="text" // Changed to text to allow phone numbers as well for login
+                  value={isLogin ? formData.emailOrPhone : formData.email}
+                  onChange={handleChange}
+                  placeholder={isLogin ? "Email or phone number" : "you@example.com"}
+                  className={`pl-11 h-12 ${isLogin ? (errors.emailOrPhone ? 'border-destructive focus:ring-destructive/20' : 'border-border') : (errors.email ? 'border-destructive focus:ring-destructive/20' : 'border-border')} focus:ring-2 focus:ring-primary/20 bg-card`}
+                  required={true}
                 />
               </div>
+              {isLogin && errors.emailOrPhone && (
+                <div className="flex items-center gap-1 text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{errors.emailOrPhone}</span>
+                </div>
+              )}
+              {!isLogin && errors.email && (
+                <div className="flex items-center gap-1 text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{errors.email}</span>
+                </div>
+              )}
             </div>
 
             {!isLogin && (
@@ -92,10 +324,19 @@ const Auth = () => {
                   <Input
                     id="phone"
                     type="tel"
+                    value={formData.phone}
+                    onChange={handleChange}
                     placeholder="+234 800 000 0000"
-                    className="pl-11 h-12 border-border focus:ring-2 focus:ring-primary/20 bg-card"
+                    className={`pl-11 h-12 ${errors.phone ? 'border-destructive focus:ring-destructive/20' : 'border-border'} focus:ring-2 focus:ring-primary/20 bg-card`}
+                    required={!isLogin}
                   />
                 </div>
+                {errors.phone && (
+                  <div className="flex items-center gap-1 text-destructive text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{errors.phone}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -108,16 +349,26 @@ const Auth = () => {
                 <Input
                   id="password"
                   type="password"
+                  value={formData.password}
+                  onChange={handleChange}
                   placeholder="••••••••"
-                  className="pl-11 h-12 border-border focus:ring-2 focus:ring-primary/20 bg-card"
+                  className={`pl-11 h-12 ${errors.password ? 'border-destructive focus:ring-destructive/20' : 'border-border'} focus:ring-2 focus:ring-primary/20 bg-card`}
+                  required
                 />
               </div>
+              {errors.password && (
+                <div className="flex items-center gap-1 text-destructive text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{errors.password}</span>
+                </div>
+              )}
             </div>
 
             {isLogin && (
               <div className="text-right">
                 <button
                   type="button"
+                  onClick={() => navigate('/forgot-password')}
                   className="text-sm text-primary hover:underline"
                 >
                   Forgot password?
@@ -127,9 +378,10 @@ const Auth = () => {
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full h-12 text-base font-semibold gradient-primary border-0 hover:opacity-90 transition-smooth shadow-medium mt-6"
             >
-              {isLogin ? "Continue" : "Create Account"}
+              {loading ? "Processing..." : (isLogin ? "Continue" : "Create Account")}
             </Button>
           </form>
 
@@ -188,13 +440,13 @@ const Auth = () => {
           {/* Terms */}
           <p className="text-xs text-center text-muted-foreground mt-8 leading-relaxed">
             By continuing, you agree to our{" "}
-            <button className="text-primary hover:underline">Terms of Service</button>
+            <button onClick={() => navigate('/terms')} className="text-primary hover:underline">Terms of Service</button>
             {" "}and{" "}
-            <button className="text-primary hover:underline">Privacy Policy</button>
+            <button onClick={() => navigate('/privacy')} className="text-primary hover:underline">Privacy Policy</button>
           </p>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

@@ -4,15 +4,65 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Camera, Save, User, MapPin, Phone, Mail, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useProfile } from "@/hooks/useAuth";
+import { useUpdateProfile } from "@/hooks/useAuth";
 
 const EditCustomerProfile = () => {
     const navigate = useNavigate();
-    const [preferences, setPreferences] = useState(["House Cleaning", "Plumbing", "Tutoring", "Beauty"]);
+    const { data: profileData, isLoading: profileLoading } = useProfile();
+    const { mutate: updateProfile, isPending: updateLoading } = useUpdateProfile();
+
+    // Initialize form state with actual profile data
+    const [formData, setFormData] = useState({
+        name: '',
+        bio: '',
+        address: '',
+        phone: '',
+        email: '',
+    });
+
+    const [preferences, setPreferences] = useState<string[]>([]);
+
+    // Initialize form data when profile data loads
+    useEffect(() => {
+        if (profileData?.data?.user) {
+            setFormData({
+                name: profileData.data.user.name || '',
+                bio: profileData.data.user.profile?.bio || '',
+                address: profileData.data.user.profile?.location?.address || '',
+                phone: profileData.data.user.phone || '',
+                email: profileData.data.user.email || '',
+            });
+
+            // Set initial preferences (this would come from user preferences if saved in the profile)
+        }
+    }, [profileData]);
 
     const handleSave = () => {
-        toast.success("Profile updated successfully!");
-        navigate(-1);
+        // Prepare the data to send to the API
+        const profileUpdateData = {
+            name: formData.name,
+            profile: {
+                bio: formData.bio,
+                location: {
+                    address: formData.address
+                }
+            },
+            phone: formData.phone,
+            email: formData.email
+        };
+
+        updateProfile(profileUpdateData, {
+            onSuccess: () => {
+                toast.success("Profile updated successfully!");
+                navigate(-1);
+            },
+            onError: (error) => {
+                toast.error("Failed to update profile. Please try again.");
+                console.error("Profile update error:", error);
+            }
+        });
     };
 
     const togglePreference = (pref: string) => {
@@ -71,13 +121,18 @@ const EditCustomerProfile = () => {
                             <div className="grid gap-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Full Name</label>
-                                    <Input defaultValue="Samuel Adeyemi" className="h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth" />
+                                    <Input
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        className="h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth"
+                                    />
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Bio</label>
                                     <Textarea
-                                        defaultValue="Love clean spaces and efficient service. Always looking for reliable professionals."
+                                        value={formData.bio}
+                                        onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                                         className="min-h-[100px] bg-muted/30 border-border/50 focus:bg-background transition-smooth resize-none leading-relaxed"
                                     />
                                 </div>
@@ -86,7 +141,11 @@ const EditCustomerProfile = () => {
                                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Home Address</label>
                                     <div className="relative">
                                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                        <Input defaultValue="Lekki Phase 1, Lagos" className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth" />
+                                        <Input
+                                            value={formData.address}
+                                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                            className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -104,7 +163,11 @@ const EditCustomerProfile = () => {
                                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone Number</label>
                                     <div className="relative">
                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                        <Input defaultValue="+234 800 987 6543" className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth" />
+                                        <Input
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth"
+                                        />
                                     </div>
                                 </div>
 
@@ -112,7 +175,12 @@ const EditCustomerProfile = () => {
                                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Address</label>
                                     <div className="relative">
                                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                        <Input defaultValue="samuel.adeyemi@email.com" type="email" className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth" />
+                                        <Input
+                                            value={formData.email}
+                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            type="email"
+                                            className="pl-10 h-11 bg-muted/30 border-border/50 focus:bg-background transition-smooth"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -133,8 +201,8 @@ const EditCustomerProfile = () => {
                                             key={service}
                                             onClick={() => togglePreference(service)}
                                             className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-300 ${preferences.includes(service)
-                                                    ? "bg-primary text-white shadow-md scale-105"
-                                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                                ? "bg-primary text-white shadow-md scale-105"
+                                                : "bg-muted text-muted-foreground hover:bg-muted/80"
                                                 }`}
                                         >
                                             {service}
@@ -147,10 +215,20 @@ const EditCustomerProfile = () => {
 
                     <Button
                         onClick={handleSave}
+                        disabled={updateLoading}
                         className="w-full mt-8 gradient-primary border-0 h-12 font-semibold shadow-medium hover:shadow-strong transition-all hover:scale-[1.02]"
                     >
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
+                        {updateLoading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                                Saving...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save Changes
+                            </>
+                        )}
                     </Button>
                 </div>
             </div>

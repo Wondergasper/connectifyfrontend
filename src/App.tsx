@@ -2,8 +2,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { ConnectionTest } from "@/components/ConnectionTest";
 
 // Lazy load page components for better performance
 const Index = lazy(() => import("./pages/Index"));
@@ -37,57 +40,129 @@ const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Receipt = lazy(() => import("./pages/Receipt"));
 const WriteReview = lazy(() => import("./pages/WriteReview"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
 
-const queryClient = new QueryClient();
+// Create a single query client instance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-foreground">Loading…</div>}>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/role" element={<RoleSelection />} />
-            <Route path="/customer-onboarding" element={<CustomerOnboarding />} />
-            <Route path="/provider-onboarding" element={<ProviderOnboarding />} />
-            <Route path="/customer" element={<CustomerDashboard />} />
-            <Route path="/provider" element={<ProviderDashboard />} />
-            <Route path="/booking" element={<BookingFlow />} />
-            <Route path="/bookings" element={<Bookings />} />
-            <Route path="/manage-bookings" element={<ManageBookings />} />
-            <Route path="/booking/:id" element={<BookingDetail />} />
-            <Route path="/receipt/:id" element={<Receipt />} />
-            <Route path="/review/:id" element={<WriteReview />} />
-            <Route path="/availability" element={<Availability />} />
-            <Route path="/service/:id" element={<ServiceDetail />} />
-            <Route path="/search" element={<SearchResults />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/messages" element={<Messages />} />
-            {/* Wallet Routes */}
-            <Route path="/wallet/provider" element={<ProviderWallet />} />
-            <Route path="/wallet/customer" element={<CustomerWallet />} />
-            <Route path="/wallet/add-funds" element={<AddFunds />} />
-            <Route path="/wallet/withdraw" element={<Withdraw />} />
-            <Route path="/wallet/cards" element={<ManageCards />} />
-            <Route path="/wallet/transactions" element={<Transactions />} />
-            {/* Profile Routes */}
-            <Route path="/profile/provider" element={<Profile />} />
-            <Route path="/profile/edit" element={<EditProfile />} />
-            <Route path="/profile/customer" element={<CustomerProfile />} />
-            <Route path="/profile/customer/edit" element={<EditCustomerProfile />} />
-            {/* Settings */}
-            <Route path="/settings/customer" element={<Settings role="customer" />} />
-            <Route path="/settings/provider" element={<Settings role="provider" />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+// Protected Route Component - Uses AuthContext instead of calling useProfile again
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen text-foreground">Loading…</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Role-based Protected Route - Uses AuthContext
+const RoleProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen text-foreground">Loading…</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to={`/${user.role}`} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// App routes component - Uses AuthContext
+const AppRoutes = () => {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-foreground">Loading…</div>}>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Index />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/role" element={<ProtectedRoute><RoleSelection /></ProtectedRoute>} />
+        <Route path="/customer-onboarding" element={<ProtectedRoute><CustomerOnboarding /></ProtectedRoute>} />
+        <Route path="/provider-onboarding" element={<ProtectedRoute><ProviderOnboarding /></ProtectedRoute>} />
+
+        {/* Protected Routes - Customer */}
+        <Route path="/customer" element={<ProtectedRoute><CustomerDashboard /></ProtectedRoute>} />
+        <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
+        <Route path="/booking" element={<ProtectedRoute><BookingFlow /></ProtectedRoute>} />
+        <Route path="/booking/:id" element={<ProtectedRoute><BookingDetail /></ProtectedRoute>} />
+        <Route path="/receipt/:id" element={<ProtectedRoute><Receipt /></ProtectedRoute>} />
+        <Route path="/review/:id" element={<ProtectedRoute><WriteReview /></ProtectedRoute>} />
+        <Route path="/service/:id" element={<ProtectedRoute><ServiceDetail /></ProtectedRoute>} />
+        <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+        <Route path="/wallet/customer" element={<ProtectedRoute><CustomerWallet /></ProtectedRoute>} />
+        <Route path="/profile/customer" element={<ProtectedRoute><CustomerProfile /></ProtectedRoute>} />
+        <Route path="/profile/customer/edit" element={<ProtectedRoute><EditCustomerProfile /></ProtectedRoute>} />
+        <Route path="/settings/customer" element={<ProtectedRoute><Settings role="customer" /></ProtectedRoute>} />
+
+        {/* Protected Routes - Provider */}
+        <Route path="/provider" element={<ProtectedRoute><ProviderDashboard /></ProtectedRoute>} />
+        <Route path="/manage-bookings" element={<ProtectedRoute><ManageBookings /></ProtectedRoute>} />
+        <Route path="/availability" element={<ProtectedRoute><Availability /></ProtectedRoute>} />
+        <Route path="/wallet/provider" element={<ProtectedRoute><ProviderWallet /></ProtectedRoute>} />
+        <Route path="/profile/provider" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/edit" element={<ProtectedRoute><EditProfile /></ProtectedRoute>} />
+        <Route path="/settings/provider" element={<ProtectedRoute><Settings role="provider" /></ProtectedRoute>} />
+
+        {/* Wallet Routes */}
+        <Route path="/wallet/add-funds" element={<ProtectedRoute><AddFunds /></ProtectedRoute>} />
+        <Route path="/wallet/withdraw" element={<ProtectedRoute><Withdraw /></ProtectedRoute>} />
+        <Route path="/wallet/cards" element={<ProtectedRoute><ManageCards /></ProtectedRoute>} />
+        <Route path="/wallet/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+
+        {/* Global Routes */}
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+};
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <ErrorBoundary>
+              <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-foreground">Loading...</div>}>
+                <AppRoutes />
+              </Suspense>
+            </ErrorBoundary>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

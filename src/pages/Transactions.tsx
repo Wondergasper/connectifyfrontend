@@ -1,18 +1,18 @@
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Filter, Search, Download } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpLeft, Filter, Search, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-
-const transactions = [
-    { id: 1, title: "Withdrawal to GTBank", date: "Today, 2:30 PM", amount: "-₦50,000", type: "debit", status: "Completed" },
-    { id: 2, title: "Payment from Adebayo", date: "Yesterday, 4:15 PM", amount: "+₦15,000", type: "credit", status: "Completed" },
-    { id: 3, title: "Payment from Grace", date: "Dec 12, 10:00 AM", amount: "+₦25,000", type: "credit", status: "Completed" },
-    { id: 4, title: "Subscription Fee", date: "Dec 10, 9:00 AM", amount: "-₦5,000", type: "debit", status: "Completed" },
-    { id: 5, title: "Top Up via Paystack", date: "Dec 8, 11:20 AM", amount: "+₦50,000", type: "credit", status: "Completed" },
-    { id: 6, title: "Refund Processed", date: "Dec 5, 3:45 PM", amount: "+₦2,500", type: "credit", status: "Completed" },
-];
+import { useWalletTransactions } from "@/hooks/useWallet";
 
 const Transactions = () => {
     const navigate = useNavigate();
+    const { data: transactionsData, isLoading } = useWalletTransactions();
+
+    const transactions = transactionsData?.data || [];
+
+    // Get transaction icon based on type
+    const getTransactionIcon = (type: string) => {
+        return type === "credit" ? ArrowDownLeft : ArrowUpLeft;
+    };
 
     return (
         <div className="min-h-screen bg-background pb-20">
@@ -45,39 +45,59 @@ const Transactions = () => {
 
             <div className="px-6 -mt-8 space-y-4">
                 <div className="bg-card rounded-3xl p-2 shadow-strong border border-border relative z-10">
-                    <div className="divide-y divide-border">
-                        {transactions.map((tx) => (
+                    {isLoading ? (
+                        Array.from({ length: 6 }).map((_, index) => (
                             <div
-                                key={tx.id}
-                                className="p-4 hover:bg-muted/30 transition-smooth first:rounded-t-2xl last:rounded-b-2xl flex items-center justify-between group"
+                                key={index}
+                                className="p-4 hover:bg-muted/30 transition-smooth first:rounded-t-2xl last:rounded-b-2xl flex items-center justify-between group animate-pulse"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 ${tx.type === 'credit' ? 'bg-green-500/10' : 'bg-red-500/10'
-                                        }`}>
-                                        {tx.type === 'credit' ? (
-                                            <ArrowDownLeft className={`w-6 h-6 ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`} />
-                                        ) : (
-                                            <ArrowUpRight className={`w-6 h-6 ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`} />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-foreground text-sm mb-0.5">{tx.title}</h3>
-                                        <p className="text-xs text-muted-foreground">{tx.date}</p>
+                                    <div className="w-12 h-12 rounded-2xl bg-muted" />
+                                    <div className="flex-1 space-y-1">
+                                        <div className="h-4 bg-muted rounded w-3/4"></div>
+                                        <div className="h-3 bg-muted rounded w-1/2"></div>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <span className={`font-bold text-sm block mb-0.5 ${tx.type === 'credit' ? 'text-green-600' : 'text-foreground'
-                                        }`}>
-                                        {tx.amount}
-                                    </span>
-                                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${tx.status === 'Completed' ? 'bg-green-500/10 text-green-600' : 'bg-yellow-500/10 text-yellow-600'
-                                        }`}>
-                                        {tx.status}
-                                    </span>
+                                    <div className="h-4 bg-muted rounded w-20 mb-1"></div>
+                                    <div className="h-3 bg-muted rounded w-16"></div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        ))
+                    ) : (
+                        <div className="divide-y divide-border">
+                            {transactions.map((tx) => {
+                                const Icon = getTransactionIcon(tx.type);
+                                return (
+                                    <div
+                                        key={tx._id || tx.id}
+                                        className="p-4 hover:bg-muted/30 transition-smooth first:rounded-t-2xl last:rounded-b-2xl flex items-center justify-between group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 ${tx.type === 'credit' ? 'bg-green-500/10' : 'bg-red-500/10'
+                                                }`}>
+                                                <Icon className={`w-6 h-6 ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-foreground text-sm mb-0.5">{tx.description || tx.title || tx.type}</h3>
+                                                <p className="text-xs text-muted-foreground">{new Date(tx.date || tx.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`font-bold text-sm block mb-0.5 ${tx.type === 'credit' ? 'text-green-600' : 'text-foreground'
+                                                }`}>
+                                                {tx.type === 'credit' ? '+' : '-'}₦{tx.amount?.toLocaleString() || 0}
+                                            </span>
+                                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${tx.status === 'completed' ? 'bg-green-500/10 text-green-600' : 'bg-yellow-500/10 text-yellow-600'
+                                                }`}>
+                                                {tx.status?.charAt(0).toUpperCase() + tx.status?.slice(1) || 'Pending'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

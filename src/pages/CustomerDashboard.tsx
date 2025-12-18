@@ -22,51 +22,70 @@ import {
   Bell
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const categories = [
-  { name: "Plumbing", icon: Wrench },
-  { name: "Cleaning", icon: Sparkles },
-  { name: "Electrical", icon: Zap },
-  { name: "Tutoring", icon: BookOpen },
-  { name: "Beauty", icon: Scissors },
-  { name: "Repair", icon: Hammer },
-];
-
-const featuredProviders = [
-  {
-    id: 1,
-    name: "Chioma Nwosu",
-    service: "House Cleaning",
-    rating: 4.9,
-    reviews: 127,
-    distance: "2.3 km",
-    price: "₦8,000/hr",
-    verified: true,
-  },
-  {
-    id: 2,
-    name: "Ibrahim Musa",
-    service: "Plumbing Expert",
-    rating: 4.8,
-    reviews: 94,
-    distance: "1.8 km",
-    price: "₦12,000/hr",
-    verified: true,
-  },
-  {
-    id: 3,
-    name: "Blessing Okafor",
-    service: "Math Tutor",
-    rating: 5.0,
-    reviews: 156,
-    distance: "3.5 km",
-    price: "₦5,000/hr",
-    verified: true,
-  },
-];
+import { useCategories } from "@/hooks/useServices";
+import { useSearchServices } from "@/hooks/useServices";
+import { useProfile } from "@/hooks/useAuth";
+import { useBookings } from "@/hooks/useBookings";
+import { useWalletBalance } from "@/hooks/useWallet";
+import { toast } from "sonner";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
+
+  // Fetch user profile to get name and location
+  const { data: profileData, isLoading: profileLoading } = useProfile();
+
+  // Fetch categories and featured services/providers from API
+  const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
+
+  // Use user's location if available, otherwise default to Lagos
+  const userLocation = profileData?.data?.user?.profile?.location?.address || "Lagos";
+
+  const { data: providersData, isLoading: providersLoading } = useSearchServices({
+    location: userLocation,
+    category: ""
+  });
+
+  // Fetch user's bookings and wallet data
+  const { data: bookingsData, isLoading: bookingsLoading } = useBookings({
+    type: 'customer',
+    status: ''
+  });
+  const { data: walletBalance, isLoading: balanceLoading } = useWalletBalance();
+
+  // Map icons to category names
+  const getCategoryIcon = (categoryName: string) => {
+    const iconMap: Record<string, typeof Wrench> = {
+      'Plumbing': Wrench,
+      'Cleaning': Sparkles,
+      'Electrical': Zap,
+      'Tutoring': BookOpen,
+      'Beauty': Scissors,
+      'Repair': Hammer,
+    };
+    return iconMap[categoryName] || Wrench; // Default to Wrench if not found
+  };
+
+  // Calculate stats from API data
+  const allBookings = bookingsData?.data || [];
+  const totalBookings = allBookings.length;
+  const completedBookings = allBookings.filter((booking: { status: string }) =>
+    ['completed', 'done'].includes(booking.status)
+  ).length;
+
+  // Calculate average rating from completed bookings
+  const completedRatings = allBookings
+    .filter((booking: { status: string }) => ['completed', 'done'].includes(booking.status))
+    .map((booking: { rating?: { value: number } }) => booking.rating?.value)
+    .filter((rating: number | undefined): rating is number => rating !== undefined);
+
+  const averageRating = completedRatings.length > 0
+    ? (completedRatings.reduce((sum: number, rating: number) => sum + rating, 0) / completedRatings.length).toFixed(1)
+    : '0.0';
+
+  // Filter featured providers from the services data
+  const featuredProviders = providersData?.data?.slice(0, 3) || [];
+  const categories = categoriesData?.data || [];
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -75,7 +94,7 @@ const CustomerDashboard = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white drop-shadow-lg">
-              Hi, Samuel 👋
+              Hi, {profileData?.data?.user?.name || 'there'} 👋
             </h1>
             <p className="text-sm text-white/80 mt-1">What do you need today?</p>
           </div>
@@ -121,33 +140,56 @@ const CustomerDashboard = () => {
       <div className="px-6 -mt-6 mb-6">
         <div className="bg-card rounded-2xl shadow-medium border border-border p-4">
           <div className="grid grid-cols-3 gap-4">
-            <button
-              onClick={() => navigate("/bookings")}
-              className="text-center hover:scale-105 transition-smooth"
-            >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                <Calendar className="w-5 h-5 text-primary" />
-              </div>
-              <div className="text-xl font-bold text-foreground">12</div>
-              <div className="text-xs text-muted-foreground">Bookings</div>
-            </button>
-            <div className="text-center border-x border-border">
-              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-2">
-                <Star className="w-5 h-5 text-accent" />
-              </div>
-              <div className="text-xl font-bold text-foreground">4.8</div>
-              <div className="text-xs text-muted-foreground">Rating</div>
-            </div>
-            <button
-              onClick={() => navigate("/wallet/customer")}
-              className="text-center hover:scale-105 transition-smooth"
-            >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                <Wallet className="w-5 h-5 text-primary" />
-              </div>
-              <div className="text-xl font-bold text-foreground">₦45k</div>
-              <div className="text-xs text-muted-foreground">Balance</div>
-            </button>
+            {bookingsLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="text-center animate-pulse"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-muted/50 mx-auto mb-2" />
+                  <div className="h-6 bg-muted rounded w-6 mx-auto mb-1" />
+                  <div className="h-3 bg-muted rounded w-8 mx-auto" />
+                </div>
+              ))
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/bookings")}
+                  className="text-center hover:scale-105 transition-smooth"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                    <Calendar className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-xl font-bold text-foreground">{totalBookings}</div>
+                  <div className="text-xs text-muted-foreground">Bookings</div>
+                </button>
+                <div className="text-center border-x border-border">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-2">
+                    <Star className="w-5 h-5 text-accent" />
+                  </div>
+                  <div className="text-xl font-bold text-foreground">{averageRating}</div>
+                  <div className="text-xs text-muted-foreground">Rating</div>
+                </div>
+                {balanceLoading ? (
+                  <div className="text-center animate-pulse">
+                    <div className="w-10 h-10 rounded-xl bg-muted/50 mx-auto mb-2" />
+                    <div className="h-6 bg-muted rounded w-8 mx-auto mb-1" />
+                    <div className="h-3 bg-muted rounded w-10 mx-auto" />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => navigate("/wallet/customer")}
+                    className="text-center hover:scale-105 transition-smooth"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                      <Wallet className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="text-xl font-bold text-foreground">₦{walletBalance?.balance?.toLocaleString() || '0'}</div>
+                    <div className="text-xs text-muted-foreground">Balance</div>
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -156,21 +198,33 @@ const CustomerDashboard = () => {
       <div className="px-6 pb-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Categories</h2>
         <div className="grid grid-cols-3 gap-3">
-          {categories.map((category) => {
-            const IconComponent = category.icon;
-            return (
-              <button
-                key={category.name}
-                onClick={() => navigate("/search")}
-                className="bg-card rounded-2xl p-5 text-center hover:shadow-medium transition-smooth border border-border hover:border-primary/20 group"
+          {categoriesLoading ? (
+            Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className="bg-card rounded-2xl p-5 text-center border border-border animate-pulse"
               >
-                <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-3 shadow-soft group-hover:shadow-medium transition-smooth">
-                  <IconComponent className="w-6 h-6 text-white" />
-                </div>
-                <div className="text-sm font-medium text-foreground">{category.name}</div>
-              </button>
-            );
-          })}
+                <div className="w-12 h-12 rounded-xl bg-muted mx-auto mb-3" />
+                <div className="h-4 bg-muted rounded w-3/4 mx-auto" />
+              </div>
+            ))
+          ) : (
+            categories.map((category) => {
+              const IconComponent = getCategoryIcon(category.name);
+              return (
+                <button
+                  key={category._id || category.name}
+                  onClick={() => navigate(`/search?category=${category.name}`)}
+                  className="bg-card rounded-2xl p-5 text-center hover:shadow-medium transition-smooth border border-border hover:border-primary/20 group"
+                >
+                  <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-3 shadow-soft group-hover:shadow-medium transition-smooth">
+                    <IconComponent className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-sm font-medium text-foreground">{category.name}</div>
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -187,54 +241,92 @@ const CustomerDashboard = () => {
         </div>
 
         <div className="space-y-4">
-          {featuredProviders.map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() => navigate("/booking")}
-              className="w-full bg-card rounded-2xl p-5 shadow-soft border border-border hover:shadow-strong hover:border-primary/20 transition-smooth text-left group"
-            >
-              <div className="flex gap-4">
-                <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center shadow-medium flex-shrink-0 group-hover:shadow-strong transition-smooth">
-                  <User className="w-8 h-8 text-white" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between mb-1">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground text-base">{provider.name}</h3>
-                        {provider.verified && (
-                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-soft">
-                            <Shield className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{provider.service}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-3.5 h-3.5 fill-primary text-primary" />
-                      <span className="font-semibold text-foreground">{provider.rating}</span>
-                      <span>({provider.reviews})</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span>{provider.distance}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-primary">{provider.price}</span>
-                    <Button size="sm" className="h-9 px-5 shadow-soft group-hover:shadow-medium transition-smooth">
-                      Book Now
-                    </Button>
+          {providersLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="w-full bg-card rounded-2xl p-5 shadow-soft border border-border animate-pulse"
+              >
+                <div className="flex gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-muted flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-muted rounded w-3/4"></div>
+                    <div className="h-3 bg-muted rounded w-1/2"></div>
+                    <div className="h-3 bg-muted rounded w-2/3"></div>
+                    <div className="h-8 bg-muted rounded w-1/4 mt-2"></div>
                   </div>
                 </div>
               </div>
-            </button>
-          ))}
+            ))
+          ) : (
+            featuredProviders.length > 0 ? (
+              featuredProviders.map((service) => (
+                <div
+                  key={service._id}
+                  onClick={() => navigate(`/service/${service._id}`)}
+                  className="w-full bg-card rounded-2xl p-5 shadow-soft border border-border hover:shadow-strong hover:border-primary/20 transition-smooth text-left group cursor-pointer"
+                >
+                  <div className="flex gap-4">
+                    <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center shadow-medium flex-shrink-0 group-hover:shadow-strong transition-smooth">
+                      <User className="w-8 h-8 text-white" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-semibold text-foreground text-base">{service.provider?.name || service.name}</h3>
+                            {service.provider?.profile?.verification?.verified && (
+                              <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-soft">
+                                <Shield className="w-3 h-3 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{service.name || service.category}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 fill-primary text-primary" />
+                          <span className="font-semibold text-foreground">{service.averageRating || 0}</span>
+                          <span>({service.reviewCount || 0})</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span>{service.location?.address || userLocation}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-bold text-primary">₦{(service.price || 0).toLocaleString()}/{service.priceType === 'hourly' ? 'hr' : 'fixed'}</span>
+                        <Button
+                          size="sm"
+                          className="h-9 px-5 shadow-soft group-hover:shadow-medium transition-smooth"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/service/${service._id}`);
+                          }}
+                        >
+                          Book Now
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No services found near you yet. Try adjusting your search.</p>
+                <Button
+                  className="mt-4"
+                  onClick={() => navigate("/search")}
+                >
+                  Browse All Services
+                </Button>
+              </div>
+            )
+          )}
         </div>
       </div>
 

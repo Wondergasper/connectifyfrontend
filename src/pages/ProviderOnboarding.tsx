@@ -5,20 +5,68 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { User, Briefcase, Camera, FileText, Sparkles } from "lucide-react";
+import { useUpdateProfile } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { PortfolioUpload } from "@/components/PortfolioUpload";
+import { VerificationUpload } from "@/components/VerificationUpload";
 
 const steps = ["Personal Info", "Service Details", "Portfolio", "Verification"];
 
 const ProviderOnboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    location: "",
+    category: "",
+    hourlyRate: "",
+    bio: "",
+    experience: "",
+  });
   const navigate = useNavigate();
+  const { mutate: updateProfile, isPending } = useUpdateProfile();
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Show confetti animation
-      navigate("/provider");
+      // Save profile information before navigating to dashboard
+      updateProfile(
+        {
+          name: formData.name,
+          phone: formData.phone,
+          profile: {
+            bio: formData.bio,
+            location: {
+              address: formData.location
+            }
+          },
+          providerDetails: {
+            category: formData.category,
+            hourlyRate: Number(formData.hourlyRate) || undefined,
+            yearsOfExperience: Number(formData.experience) || undefined
+          }
+        },
+        {
+          onSuccess: () => {
+            navigate("/provider");
+            toast.success("Profile updated successfully!");
+          },
+          onError: (error: unknown) => {
+            console.error("Failed to update profile:", error);
+            // Still navigate to dashboard even if update fails
+            navigate("/provider");
+            toast.error("Failed to save profile information, but you can continue");
+          }
+        }
+      );
     }
+  };
+
+  // Handler for all form inputs
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({ ...prev, [id]: value }));
   };
 
   return (
@@ -37,9 +85,8 @@ const ProviderOnboarding = () => {
           {steps.map((_, index) => (
             <div
               key={index}
-              className={`h-1.5 flex-1 rounded-full transition-smooth ${
-                index <= currentStep ? "bg-accent" : "bg-border"
-              }`}
+              className={`h-1.5 flex-1 rounded-full transition-smooth ${index <= currentStep ? "bg-accent" : "bg-border"
+                }`}
             />
           ))}
         </div>
@@ -69,18 +116,37 @@ const ProviderOnboarding = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input placeholder="Your full name" className="h-12 bg-card" />
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                placeholder="Your full name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className="h-12 bg-card"
+              />
             </div>
 
             <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input type="tel" placeholder="+234 800 000 0000" className="h-12 bg-card" />
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+234 800 000 0000"
+                value={formData.phone}
+                onChange={handleInputChange}
+                className="h-12 bg-card"
+              />
             </div>
 
             <div className="space-y-2">
-              <Label>Business Location</Label>
-              <Input placeholder="Lekki, Lagos" className="h-12 bg-card" />
+              <Label htmlFor="location">Business Location</Label>
+              <Input
+                id="location"
+                placeholder="Lekki, Lagos"
+                value={formData.location}
+                onChange={handleInputChange}
+                className="h-12 bg-card"
+              />
             </div>
           </div>
         )}
@@ -88,34 +154,56 @@ const ProviderOnboarding = () => {
         {currentStep === 1 && (
           <div className="space-y-5 animate-fade-in">
             <div className="space-y-2">
-              <Label>Service Category</Label>
-              <select className="w-full h-12 px-4 rounded-xl border border-border bg-card text-foreground">
-                <option>Select a category</option>
-                <option>House Cleaning</option>
-                <option>Plumbing</option>
-                <option>Electrical</option>
-                <option>Tutoring</option>
-                <option>Beauty & Spa</option>
-                <option>Repair Services</option>
+              <Label htmlFor="category">Service Category</Label>
+              <select
+                id="category"
+                value={formData.category}
+                onChange={handleInputChange}
+                className="w-full h-12 px-4 rounded-xl border border-border bg-card text-foreground"
+              >
+                <option value="">Select a category</option>
+                <option value="House Cleaning">House Cleaning</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Tutoring">Tutoring</option>
+                <option value="Beauty & Spa">Beauty & Spa</option>
+                <option value="Repair Services">Repair Services</option>
               </select>
             </div>
 
             <div className="space-y-2">
-              <Label>Hourly Rate (₦)</Label>
-              <Input type="number" placeholder="8000" className="h-12 bg-card" />
+              <Label htmlFor="hourlyRate">Hourly Rate (₦)</Label>
+              <Input
+                id="hourlyRate"
+                type="number"
+                placeholder="8000"
+                value={formData.hourlyRate}
+                onChange={handleInputChange}
+                className="h-12 bg-card"
+              />
             </div>
 
             <div className="space-y-2">
-              <Label>Bio</Label>
+              <Label htmlFor="bio">Bio</Label>
               <Textarea
+                id="bio"
                 placeholder="Tell customers about your experience and expertise..."
+                value={formData.bio}
+                onChange={handleInputChange}
                 className="min-h-32 bg-card resize-none"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Years of Experience</Label>
-              <Input type="number" placeholder="5" className="h-12 bg-card" />
+              <Label htmlFor="experience">Years of Experience</Label>
+              <Input
+                id="experience"
+                type="number"
+                placeholder="5"
+                value={formData.experience}
+                onChange={handleInputChange}
+                className="h-12 bg-card"
+              />
             </div>
           </div>
         )}
@@ -128,22 +216,24 @@ const ProviderOnboarding = () => {
                 Show potential customers examples of your work
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
-                {[1, 2, 3, 4].map((item) => (
-                  <button
-                    key={item}
-                    className="aspect-square rounded-2xl border-2 border-dashed border-border bg-muted/30 hover:bg-muted/50 transition-smooth flex flex-col items-center justify-center gap-2"
-                  >
-                    <Camera className="w-8 h-8 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Add Photo</span>
-                  </button>
-                ))}
-              </div>
+              <PortfolioUpload
+                currentImages={[]}
+                maxImages={6}
+                onUploadComplete={() => {
+                  toast.success("Photos uploaded! You can add more later from your profile.");
+                }}
+              />
             </div>
 
             <div className="p-4 bg-accent/10 rounded-xl">
               <p className="text-xs text-accent text-center">
                 💡 Tip: Clear, well-lit photos help you get more bookings
+              </p>
+            </div>
+
+            <div className="p-3 bg-muted/50 rounded-xl">
+              <p className="text-xs text-muted-foreground text-center">
+                Don't worry! You can add or change photos anytime from your profile
               </p>
             </div>
           </div>
@@ -163,37 +253,11 @@ const ProviderOnboarding = () => {
               </p>
             </div>
 
-            <div className="space-y-3">
-              <button className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary transition-smooth text-left">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl">
-                    🪪
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground text-sm">National ID</div>
-                    <div className="text-xs text-muted-foreground">NIN, Driver's License, or Voter's Card</div>
-                  </div>
-                </div>
-              </button>
-
-              <button className="w-full p-4 rounded-xl border-2 border-border bg-card hover:border-primary transition-smooth text-left">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-2xl">
-                    📄
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground text-sm">Business Document</div>
-                    <div className="text-xs text-muted-foreground">Registration or License (Optional)</div>
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            <div className="mt-6 p-4 bg-muted/50 rounded-xl">
-              <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                🔒 Your documents are encrypted and securely stored
-              </p>
-            </div>
+            <VerificationUpload
+              onUploadComplete={() => {
+                toast.success("Documents uploaded! We'll verify them within 24-48 hours.");
+              }}
+            />
           </div>
         )}
       </div>
@@ -202,15 +266,20 @@ const ProviderOnboarding = () => {
       <div className="px-6 pb-8 space-y-3">
         <Button
           onClick={handleNext}
-          className="w-full h-14 bg-accent hover:bg-accent/90 text-white border-0 font-semibold shadow-medium"
+          disabled={isPending}
+          className="w-full h-14 bg-accent hover:bg-accent/90 text-white border-0 font-semibold shadow-medium disabled:opacity-70"
         >
-          {currentStep === steps.length - 1 ? (
-            <>
-              <Sparkles className="w-5 h-5 mr-2" />
-              Complete Setup
-            </>
+          {isPending ? (
+            "Saving..."
           ) : (
-            "Continue"
+            currentStep === steps.length - 1 ? (
+              <>
+                <Sparkles className="w-5 h-5 mr-2" />
+                Complete Setup
+              </>
+            ) : (
+              "Continue"
+            )
           )}
         </Button>
 
@@ -226,8 +295,9 @@ const ProviderOnboarding = () => {
 
         {currentStep < steps.length - 1 && (
           <button
-            onClick={() => navigate("/provider")}
-            className="w-full text-sm text-muted-foreground hover:text-foreground transition-smooth"
+            onClick={() => !isPending && navigate("/provider")}
+            className="w-full text-sm text-muted-foreground hover:text-foreground transition-smooth disabled:opacity-50"
+            disabled={isPending}
           >
             Skip for now
           </button>

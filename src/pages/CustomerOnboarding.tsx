@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { MapPin, User, Phone, CheckCircle } from "lucide-react";
+import { useUpdateProfile } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 const steps = ["Personal Details", "Location", "Preferences"];
 
@@ -16,9 +19,10 @@ const CustomerOnboarding = () => {
     interests: [] as string[],
   });
   const navigate = useNavigate();
+  const { mutate: updateProfile, isPending } = useUpdateProfile();
 
   const services = [
-    "Plumbing", "Cleaning", "Electrical", "Tutoring", 
+    "Plumbing", "Cleaning", "Electrical", "Tutoring",
     "Beauty", "Repair", "Cooking", "Gardening"
   ];
 
@@ -26,7 +30,31 @@ const CustomerOnboarding = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      navigate("/customer");
+      // Save profile information before navigating to dashboard
+      updateProfile(
+        {
+          name: formData.name,
+          phone: formData.phone,
+          profile: {
+            bio: formData.interests.join(', '),
+            location: {
+              address: formData.location
+            }
+          }
+        },
+        {
+          onSuccess: () => {
+            navigate("/customer");
+            toast.success("Profile updated successfully!");
+          },
+          onError: (error: unknown) => {
+            console.error("Failed to update profile:", error);
+            // Still navigate to dashboard even if update fails
+            navigate("/customer");
+            toast.error("Failed to save profile information, but you can continue");
+          }
+        }
+      );
     }
   };
 
@@ -37,6 +65,73 @@ const CustomerOnboarding = () => {
         ? prev.interests.filter(s => s !== service)
         : [...prev.interests, service]
     }));
+  };
+
+  const handleUseCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    toast.info('Getting your location...');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          // Call backend API to convert coordinates to address
+          const response = await api.location.reverseGeocode(latitude, longitude);
+
+          if (response.success && response.data) {
+            setFormData(prev => ({
+              ...prev,
+              location: response.data.formattedAddress
+            }));
+            toast.success('Location detected!');
+          } else {
+            // Fallback to coordinates
+            const locationString = `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
+            setFormData(prev => ({
+              ...prev,
+              location: locationString
+            }));
+            toast.success('Location detected (coordinates)');
+          }
+        } catch (error) {
+          console.error('Geocoding error:', error);
+          // Fallback to coordinates
+          const locationString = `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
+          setFormData(prev => ({
+            ...prev,
+            location: locationString
+          }));
+          toast.warning('Using coordinates');
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location permission denied. Please enter manually.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location information unavailable');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out');
+            break;
+          default:
+            toast.error('Failed to get your location');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   };
 
   return (
@@ -55,9 +150,8 @@ const CustomerOnboarding = () => {
           {steps.map((_, index) => (
             <div
               key={index}
-              className={`h-1.5 flex-1 rounded-full transition-smooth ${
-                index <= currentStep ? "bg-primary" : "bg-border"
-              }`}
+              className={`h-1.5 flex-1 rounded-full transition-smooth ${index <= currentStep ? "bg-primary" : "bg-border"
+                }`}
             />
           ))}
         </div>
@@ -77,7 +171,7 @@ const CustomerOnboarding = () => {
                   id="fullname"
                   placeholder="Samuel Adebayo"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   className="pl-11 h-12 bg-card border-border"
                 />
               </div>
@@ -92,7 +186,7 @@ const CustomerOnboarding = () => {
                   type="tel"
                   placeholder="+234 800 000 0000"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   className="pl-11 h-12 bg-card border-border"
                 />
               </div>
@@ -110,13 +204,18 @@ const CustomerOnboarding = () => {
                   id="location"
                   placeholder="Lekki, Lagos"
                   value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
                   className="pl-11 h-12 bg-card border-border"
                 />
               </div>
             </div>
 
-            <Button variant="outline" className="w-full h-12">
+            <Button
+              variant="outline"
+              className="w-full h-12"
+              onClick={handleUseCurrentLocation}
+              type="button"
+            >
               📍 Use Current Location
             </Button>
 
@@ -143,11 +242,10 @@ const CustomerOnboarding = () => {
                   <button
                     key={service}
                     onClick={() => toggleInterest(service)}
-                    className={`p-4 rounded-xl border-2 transition-smooth text-left ${
-                      formData.interests.includes(service)
+                    className={`p-4 rounded-xl border-2 transition-smooth text-left ${formData.interests.includes(service)
                         ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:border-muted-foreground/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{service}</span>
@@ -167,9 +265,10 @@ const CustomerOnboarding = () => {
       <div className="px-6 pb-8 space-y-3">
         <Button
           onClick={handleNext}
-          className="w-full h-14 gradient-primary border-0 font-semibold shadow-medium"
+          disabled={isPending}
+          className="w-full h-14 gradient-primary border-0 font-semibold shadow-medium disabled:opacity-70"
         >
-          {currentStep === steps.length - 1 ? "Complete Setup" : "Continue"}
+          {isPending ? "Saving..." : currentStep === steps.length - 1 ? "Complete Setup" : "Continue"}
         </Button>
 
         {currentStep > 0 && (

@@ -4,19 +4,40 @@ import { ArrowLeft, CreditCard, ShieldCheck, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useAddFunds } from "@/hooks/useWallet";
 
 const AddFunds = () => {
     const navigate = useNavigate();
     const [amount, setAmount] = useState("");
+    const { mutate: addFunds, isPending } = useAddFunds();
 
     const handleProceed = () => {
         if (!amount) {
             toast.error("Please enter an amount");
             return;
         }
-        toast.success("Redirecting to Paystack...");
-        // Simulate redirect
-        setTimeout(() => navigate(-1), 1500);
+
+        // Validate amount
+        const amountValue = parseFloat(amount);
+        if (isNaN(amountValue) || amountValue <= 0) {
+            toast.error("Please enter a valid amount");
+            return;
+        }
+
+        // Process the fund addition
+        addFunds(
+            { amount: amountValue },
+            {
+                onSuccess: () => {
+                    toast.success("Funds added successfully!");
+                    navigate("/customer");
+                },
+                onError: (error: Error) => {
+                    console.error("Failed to add funds:", error);
+                    toast.error(error.message || "Failed to add funds. Please try again.");
+                }
+            }
+        );
     };
 
     return (
@@ -47,6 +68,7 @@ const AddFunds = () => {
                                     className="pl-10 text-3xl font-bold h-20 text-center bg-muted/30 border-border/50 focus:bg-background transition-smooth rounded-2xl"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
+                                    disabled={isPending}
                                 />
                             </div>
                         </div>
@@ -56,7 +78,12 @@ const AddFunds = () => {
                                 <button
                                     key={val}
                                     onClick={() => setAmount(val)}
-                                    className="py-3 rounded-xl border border-border bg-muted/20 hover:bg-primary/5 hover:border-primary/30 text-sm font-medium transition-smooth"
+                                    disabled={isPending}
+                                    className={`py-3 rounded-xl border border-border text-sm font-medium transition-smooth ${
+                                        amount === val
+                                          ? 'bg-primary/10 border-primary text-primary'
+                                          : 'bg-muted/20 hover:bg-primary/5 hover:border-primary/30'
+                                    }`}
                                 >
                                     ₦{parseInt(val).toLocaleString()}
                                 </button>
@@ -65,7 +92,14 @@ const AddFunds = () => {
 
                         <div className="space-y-3">
                             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Payment Method</label>
-                            <button className="w-full flex items-center gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-smooth group">
+                            <button
+                                className="w-full flex items-center gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 transition-smooth group"
+                                onClick={(e) => {
+                                    e.preventDefault(); // Prevent from navigating since payment will happen on click
+                                    handleProceed();
+                                }}
+                                disabled={isPending}
+                            >
                                 <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-smooth">
                                     <CreditCard className="w-6 h-6 text-primary" />
                                 </div>
@@ -79,9 +113,17 @@ const AddFunds = () => {
 
                         <Button
                             onClick={handleProceed}
+                            disabled={isPending || !amount}
                             className="w-full gradient-primary border-0 h-14 text-lg font-semibold shadow-medium hover:shadow-strong transition-all hover:scale-[1.02] rounded-xl"
                         >
-                            Proceed to Pay
+                            {isPending ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                                    Processing...
+                                </>
+                            ) : (
+                                "Proceed to Pay"
+                            )}
                         </Button>
 
                         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground opacity-70">

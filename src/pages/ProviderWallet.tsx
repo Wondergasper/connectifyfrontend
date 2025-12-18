@@ -1,18 +1,45 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, TrendingUp, CreditCard, Building } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpLeft, TrendingUp, CreditCard, Building } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-
-// Mock transaction data (same as before)
-const transactions = [
-  { id: 1, type: "debit", title: "Withdrawal to GTBank", date: "Today, 2:30 PM", amount: "-₦50,000" },
-  { id: 2, type: "credit", title: "Payment from Adebayo", date: "Yesterday, 4:15 PM", amount: "+₦15,000" },
-  { id: 3, type: "credit", title: "Payment from Grace", date: "Dec 12, 10:00 AM", amount: "+₦25,000" },
-  { id: 4, type: "debit", title: "Subscription Fee", date: "Dec 10, 9:00 AM", amount: "-₦5,000" },
-];
+import { useWalletBalance, useWalletTransactions } from "@/hooks/useWallet";
 
 const ProviderWallet = () => {
   const navigate = useNavigate();
+
+  // Fetch wallet data from API
+  const { data: walletBalance, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
+  const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useWalletTransactions();
+
+  // Show loading state while fetching data
+  if (balanceLoading || transactionsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-muted-foreground">Loading wallet data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (balanceError || transactionsError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Error Loading Wallet</h2>
+          <p className="text-muted-foreground mb-4">Failed to load your wallet data. Please try again later.</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback to mock icons since they're not in API
+  const getTransactionIcon = (type: string) => {
+    return type === "credit" ? ArrowDownLeft : ArrowUpLeft;
+  };
 
   const handleAddFunds = () => navigate("/wallet/add-funds");
   const handleWithdraw = () => navigate("/wallet/withdraw");
@@ -30,7 +57,7 @@ const ProviderWallet = () => {
         </button>
         <div className="text-center text-white mb-4">
           <p className="text-white/80 text-sm mb-1">Total Balance</p>
-          <h1 className="text-4xl font-bold drop-shadow-md">₦234,500</h1>
+          <h1 className="text-4xl font-bold drop-shadow-md">{walletBalance?.balance ? `₦${walletBalance.balance.toLocaleString()}` : '₦0'}</h1>
         </div>
         {/* Action Buttons */}
         <div className="flex gap-4 px-6">
@@ -46,7 +73,7 @@ const ProviderWallet = () => {
             variant="outline"
             className="flex-1 h-12 border-2 border-primary/20 text-primary hover:bg-primary/5"
           >
-            <ArrowUpRight className="w-5 h-5 mr-2" />
+            <ArrowUpLeft className="w-5 h-5 mr-2" />
             Withdraw
           </Button>
         </div>
@@ -87,30 +114,35 @@ const ProviderWallet = () => {
           </button>
         </div>
         <div className="space-y-3">
-          {transactions.map((tx) => (
-            <div
-              key={tx.id}
-              className="bg-card rounded-2xl p-4 shadow-soft border border-border flex items-center justify-between"
-            >
-              <div className="flex items-center gap-3">
+          {Array.isArray(transactions?.data) && transactions.data.length > 0 ? (
+            transactions.data.slice(0, 4).map((tx, index) => {
+              const Icon = getTransactionIcon(tx.type);
+              return (
                 <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
-                    }`}
+                  key={tx.id || index}
+                  className="bg-card rounded-2xl p-4 shadow-soft border border-border flex items-center justify-between"
                 >
-                  {tx.type === "credit" ? (
-                    <ArrowDownLeft className="w-5 h-5" />
-                  ) : (
-                    <ArrowUpRight className="w-5 h-5" />
-                  )}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === "credit" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                        }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-foreground text-sm">{tx.description || tx.title || tx.type}</h3>
+                      <p className="text-xs text-muted-foreground truncate">{new Date(tx.date || tx.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className={`font-bold text-sm ${tx.type === "credit" ? "text-green-600" : "text-foreground"}`}>{tx.type === 'credit' ? '+' : '-'}₦{tx.amount?.toLocaleString() || 0}</div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-foreground text-sm">{tx.title}</h3>
-                  <p className="text-xs text-muted-foreground truncate">{tx.date}</p>
-                </div>
-              </div>
-              <div className={`font-bold text-sm ${tx.type === "credit" ? "text-green-600" : "text-foreground"}`}>{tx.amount}</div>
+              );
+            })
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No transactions yet. Your transactions will appear here.
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
