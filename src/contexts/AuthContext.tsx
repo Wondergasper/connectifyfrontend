@@ -12,18 +12,19 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Utility function to extract token from cookies
+// Utility function to extract access token from cookies
+// Backend sets 'accessToken' cookie (not 'token')
 const getTokenFromCookie = (): string | null => {
   try {
     const cookies = document.cookie.split(';');
-    const tokenCookie = cookies.find(c => c.trim().startsWith('token='));
+    const tokenCookie = cookies.find(c => c.trim().startsWith('accessToken='));
     if (tokenCookie) {
       const tokenValue = tokenCookie.split('=')[1];
       return tokenValue ? decodeURIComponent(tokenValue) : null;
     }
     return null;
   } catch (error) {
-    console.error('Error extracting token from cookie:', error);
+    console.error('Error extracting access token from cookie:', error);
     return null;
   }
 };

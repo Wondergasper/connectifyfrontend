@@ -105,18 +105,29 @@ All colors MUST be HSL.
     @apply transition-all active:scale-95;
   }
 
-  /* Mobile app feel */
+  /* Responsive container - mobile-first design */
   #root {
     @apply min-h-screen;
-    max-width: 480px;
-    margin: 0 auto;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
   }
 
-  /* Mobile-specific typography */
-  @media (max-width: 480px) {
+  /* Mobile: Constrained width with app-like feel */
+  @media (max-width: 767px) {
+    #root {
+      max-width: 480px;
+      margin: 0 auto;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
+    }
+    
     html {
       font-size: 14px;
+    }
+  }
+
+  /* Desktop: Full width with responsive containers */
+  @media (min-width: 768px) {
+    #root {
+      width: 100%;
+      margin: 0;
     }
   }
 }

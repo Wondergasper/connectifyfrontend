@@ -26,3 +26,13 @@ dist-ssr
 .env.production
 final-verification.cjs 
 UPLOAD_IMPLEMENTATION_GUIDE.txt
+BACKEND_CONFIGURED.md
+CORS_SETUP_GUIDE.md
+DEPLOYMENT_SETUP.md
+README_START_HERE.md
+quick-start.ps1
+.env.example
+
+DEPLOYMENT_SUCCESS.md
+DEPLOYMENT_VERIFICATION.md
+URGENT_CORS_FIX.md 

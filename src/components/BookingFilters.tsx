@@ -66,7 +66,7 @@ export const BookingFilters = ({ onApplyFilters, onClose }: BookingFiltersProps)
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-            <div className="bg-card rounded-t-3xl sm:rounded-3xl shadow-strong max-w-md w-full max-h-[90vh] overflow-y-auto animate-slide-up">
+            <div className="bg-card rounded-t-3xl sm:rounded-3xl shadow-strong max-w-md md:max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-slide-up">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
                     <div className="flex items-center gap-3">
@@ -156,8 +156,8 @@ export const BookingFilters = ({ onApplyFilters, onClose }: BookingFiltersProps)
                                     key={status.value}
                                     onClick={() => toggleStatus(status.value)}
                                     className={`px-3 py-2 rounded-xl border-2 text-xs font-semibold transition-all ${selectedStatuses.includes(status.value)
-                                            ? `border-${status.color}-500 bg-${status.color}-500/10 text-${status.color}-600`
-                                            : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30"
+                                        ? `border-${status.color}-500 bg-${status.color}-500/10 text-${status.color}-600`
+                                        : "border-border bg-card text-muted-foreground hover:border-muted-foreground/30"
                                         }`}
                                 >
                                     {status.label}

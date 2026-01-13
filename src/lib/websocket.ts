@@ -92,8 +92,9 @@ let socketInstance: any | null = null;
 // For WebSocket, we need the actual backend URL, not the proxy
 // In production, use VITE_WS_URL from environment
 // In development, fallback to localhost
+// Production backend: https://backendconnectify-ah3q.onrender.com
 const BACKEND_URL = import.meta.env.VITE_WS_URL ||
-  (import.meta.env.DEV ? 'http://localhost:5000' : 'https://your-production-backend.com');
+  (import.meta.env.DEV ? 'http://localhost:5000' : 'https://backendconnectify-ah3q.onrender.com');
 
 export const initializeWebSocket = (userId: string, token: string | null) => {
   if (socketInstance) {

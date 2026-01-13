@@ -80,16 +80,14 @@ class ApiClient {
           const errorData = await response.json().catch(() => ({} as ApiErrorResponse));
           console.log('Received 401, attempting token refresh...');
 
-          // Attempt to refresh the token
-          const refreshToken = localStorage.getItem('refreshToken');
-          const refreshBody = refreshToken ? JSON.stringify({ refreshToken }) : undefined;
+          // Attempt to refresh the token using httpOnly cookies
+          // Refresh token is automatically sent via cookies with credentials: 'include'
           const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
             method: 'POST',
             credentials: 'include', // Include cookies for refresh token
             headers: {
               'Content-Type': 'application/json',
             },
-            body: refreshBody,
           });
 
           if (refreshResponse.ok) {
@@ -174,11 +172,10 @@ class ApiClient {
     logout: () =>
       this.request<ApiResponse<{ message: string }>>('/auth/logout', { method: 'POST' }),
 
-    // Send stored refresh token in request body
+    // Refresh token using httpOnly cookies (no localStorage needed)
     refreshToken: () => {
-      const refreshToken = localStorage.getItem('refreshToken');
-      const body = refreshToken ? JSON.stringify({ refreshToken }) : undefined;
-      return this.request<ApiResponse<{ token: string }>>('/auth/refresh', { method: 'POST', body });
+      // Refresh token is automatically sent via httpOnly cookies
+      return this.request<ApiResponse<{ token: string }>>('/auth/refresh', { method: 'POST' });
     },
 
     forgotPassword: (email: string) =>
@@ -353,15 +350,13 @@ class ApiClient {
 
       // Handle authentication errors and try to refresh token automatically
       if (response.status === 401) {
-        const refreshToken = localStorage.getItem('refreshToken');
-        const refreshBody = refreshToken ? JSON.stringify({ refreshToken }) : undefined;
+        // Refresh token is automatically sent via httpOnly cookies
         const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
           method: 'POST',
           credentials: 'include', // Include cookies for refresh token
           headers: {
             'Content-Type': 'application/json',
           },
-          body: refreshBody,
         });
 
         if (refreshResponse.ok) {
@@ -554,6 +549,3 @@ console.error = function (...args) {
   }
   originalConsoleError.apply(console, args);
 };
-
-// Helper to retrieve stored refresh token (used by other modules if needed)
-export const getStoredRefreshToken = () => localStorage.getItem('refreshToken');
