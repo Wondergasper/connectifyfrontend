@@ -26,7 +26,7 @@ const AddFunds = () => {
 
         // Process the fund addition
         addFunds(
-            { amount: amountValue },
+            { amount: amountValue, paymentMethod: 'paystack' },
             {
                 onSuccess: () => {
                     toast.success("Funds added successfully!");
