@@ -170,7 +170,24 @@ const Auth = () => {
 
         console.log('Registration successful:', response);
         toast.success('Registration successful!');
-        navigate("/role");
+
+        // Give a delay to ensure cookies are fully set
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // CRITICAL: Set the user data directly in React Query cache
+        // This ensures AuthContext has the user data before navigating
+        console.log('📦 Setting user data in cache after registration...');
+        queryClient.setQueryData(['profile'], {
+          success: true,
+          data: {
+            user: response.data.user
+          }
+        });
+
+        console.log('✅ Cache updated with user data');
+        console.log('🔄 Redirecting to role selection...');
+
+        navigate("/role", { replace: true });
       }
     } catch (error: unknown) {
       console.error('Auth error:', error);
