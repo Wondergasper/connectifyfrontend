@@ -84,9 +84,9 @@ export const useRealTimeMessages = (conversationId: string) => {
   useEffect(() => {
     if (!socket || !conversationId) return;
 
-    const handleNewMessage = (message: any) => {
+    const handleNewMessage = (message: Message) => {
       // Update the messages query to include the new message
-      queryClient.setQueryData(['messages', conversationId], (oldData: any) => {
+      queryClient.setQueryData(['messages', conversationId], (oldData: ApiResponse<Message[]> | undefined) => {
         if (!oldData) return { data: [message] };
         return {
           ...oldData,
@@ -106,7 +106,7 @@ export const useRealTimeMessages = (conversationId: string) => {
   useEffect(() => {
     if (!socket) return;
 
-    const handleConversationUpdated = (conversations: any[]) => {
+    const handleConversationUpdated = (conversations: Conversation[]) => {
       queryClient.setQueryData(['conversations'], () => ({
         data: conversations
       }));

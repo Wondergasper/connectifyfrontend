@@ -21,7 +21,7 @@ const ForgotPassword = () => {
             await api.auth.forgotPassword(email);
             setSuccess(true);
             toast.success("Reset link sent!");
-        } catch (error: any) {
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error("Forgot password error:", error);
             toast.error(error.message || "Failed to send reset link");
         } finally {

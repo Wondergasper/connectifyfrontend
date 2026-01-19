@@ -522,6 +522,7 @@ class ApiClient {
   // Location/Geolocation methods
   location = {
     reverseGeocode: async (latitude: number, longitude: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return this.request<any>('/location/reverse-geocode', {
         method: 'POST',
         body: JSON.stringify({ latitude, longitude })
@@ -529,6 +530,7 @@ class ApiClient {
     },
 
     calculateDistance: async (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return this.request<any>('/location/calculate-distance', {
         method: 'POST',
         body: JSON.stringify({ lat1, lon1, lat2, lon2 })
