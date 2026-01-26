@@ -35,7 +35,7 @@ const ResetPassword = () => {
             await api.auth.resetPassword(token, password);
             setSuccess(true);
             toast.success("Password reset successful!");
-        } catch (error: any) {
+        } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error("Reset password error:", error);
             toast.error(error.message || "Failed to reset password");
         } finally {

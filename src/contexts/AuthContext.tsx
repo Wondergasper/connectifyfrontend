@@ -1,11 +1,11 @@
 import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { useProfileNoNavigate } from '../hooks/useAuth';
-import { ApiResponse, UserProfileResponse } from '../lib/apiTypes';
+import { ApiResponse, UserProfileResponse, User } from '../lib/apiTypes';
 
 interface AuthContextType {
   token: string | null;
   userId: string | null;
-  user: any | null;
+  user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
