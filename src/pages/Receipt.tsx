@@ -2,18 +2,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Share2, CheckCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useBooking } from "@/hooks/useBookings";
 
 const Receipt = () => {
     const navigate = useNavigate();
     const { id } = useParams();
 
     // Fetch booking details to get receipt information
-    const { data: bookingData, isLoading, isError } = useQuery({
-        queryKey: ['booking', id],
-        queryFn: () => api.bookings.getById(id!),
-    });
+    const { data: bookingData, isLoading, isError } = useBooking(id!);
 
     // Function to download receipt as PDF
     const handleDownload = async () => {

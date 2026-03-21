@@ -1,19 +1,17 @@
-// src/hooks/useWallet.ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { WalletBalance, Transaction, AddFundsRequest } from '@/lib/apiTypes';
+import { AddFundsRequest } from '@/lib/apiTypes';
 
 export const useWalletBalance = () => {
   return useQuery({
-    queryKey: ['walletBalance'],
+    queryKey: ['wallet-balance'],
     queryFn: () => api.wallet.getBalance(),
-    staleTime: 60 * 1000, // 1 minute
   });
 };
 
 export const useWalletTransactions = () => {
   return useQuery({
-    queryKey: ['walletTransactions'],
+    queryKey: ['wallet-transactions'],
     queryFn: () => api.wallet.getTransactions(),
   });
 };
@@ -24,8 +22,8 @@ export const useAddFunds = () => {
   return useMutation({
     mutationFn: (fundsData: AddFundsRequest) => api.wallet.addFunds(fundsData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['walletBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] });
     },
   });
 };
@@ -36,8 +34,8 @@ export const useProcessPayment = () => {
   return useMutation({
     mutationFn: (paymentData: Record<string, unknown>) => api.wallet.processPayment(paymentData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['walletBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] });
     },
   });
 };

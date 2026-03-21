@@ -1,20 +1,24 @@
-// src/hooks/useAvailability.ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Availability, UpdateAvailabilityRequest } from '@/lib/apiTypes';
+import { UpdateAvailabilityRequest } from '@/lib/apiTypes';
 
-export const useAvailability = (params: { providerId: string; date?: string }) => {
+export const useAvailability = (providerId?: string, date?: string) => {
   return useQuery({
-    queryKey: ['availability', params],
-    queryFn: () => api.availability.get(params),
-    staleTime: 60 * 1000, // 1 minute
+    queryKey: ['availability', { providerId, date }],
+    queryFn: () => api.availability.get({ providerId: providerId || '', date }),
+    enabled: !!providerId,
   });
 };
 
-export const useAvailabilityRange = (params: { providerId: string; startDate?: string; endDate?: string }) => {
+export const useAvailabilityRange = (
+  providerId?: string,
+  startDate?: string,
+  endDate?: string
+) => {
   return useQuery({
-    queryKey: ['availabilityRange', params],
-    queryFn: () => api.availability.getRange(params),
+    queryKey: ['availability-range', { providerId, startDate, endDate }],
+    queryFn: () => api.availability.getRange({ providerId: providerId || '', startDate, endDate }),
+    enabled: !!providerId,
   });
 };
 
@@ -22,14 +26,15 @@ export const useUpdateAvailability = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (availabilityData: UpdateAvailabilityRequest) => api.availability.update(availabilityData),
+    mutationFn: (availabilityData: UpdateAvailabilityRequest & { providerId?: string }) =>
+      api.availability.update(availabilityData),
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['availability', { providerId: data.providerId }]
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['availabilityRange', { providerId: data.providerId }]
-      });
+      const providerId = variables.providerId || (data?.data?.providerId ?? undefined);
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      if (providerId) {
+        queryClient.invalidateQueries({ queryKey: ['availability', { providerId }] });
+        queryClient.invalidateQueries({ queryKey: ['availability-range', { providerId }] });
+      }
     },
   });
 };
@@ -38,12 +43,11 @@ export const useBookSlot = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (slotData: { date: string; startTime: string; bookingId: string }) =>
+    mutationFn: (slotData: { providerId: string; date: string; startTime: string; bookingId: string }) =>
       api.availability.bookSlot(slotData),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['availability', { providerId: data.providerId }]
-      });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['availability', { providerId: variables.providerId }] });
+      queryClient.invalidateQueries({ queryKey: ['availability-range', { providerId: variables.providerId }] });
     },
   });
 };
@@ -52,12 +56,12 @@ export const useUnbookSlot = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (slotData: { date: string; startTime: string; bookingId: string }) =>
+    mutationFn: (slotData: { providerId: string; date: string; startTime: string; bookingId: string }) =>
       api.availability.unbookSlot(slotData),
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['availability', { providerId: data.providerId }]
-      });
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['availability', { providerId: variables.providerId }] });
+      queryClient.invalidateQueries({ queryKey: ['availability-range', { providerId: variables.providerId }] });
     },
   });
 };
+

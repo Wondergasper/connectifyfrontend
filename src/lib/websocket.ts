@@ -96,21 +96,12 @@ let socketInstance: any | null = null;
 const BACKEND_URL = import.meta.env.VITE_WS_URL ||
   (import.meta.env.DEV ? 'http://localhost:5000' : 'https://backendconnectify-ah3q.onrender.com');
 
-export const initializeWebSocket = (userId: string, token: string | null) => {
+export const initializeWebSocket = (userId: string) => {
   if (socketInstance) {
     return socketInstance;
   }
 
-  // Don't initialize if no token available
-  if (!token) {
-    console.warn('Cannot initialize WebSocket: No authentication token available');
-    return null;
-  }
-
   socketInstance = io(BACKEND_URL, {
-    auth: {
-      token: token  // Send JWT token for authentication
-    },
     transports: ['websocket', 'polling'],
     withCredentials: true,
   });
@@ -147,13 +138,12 @@ export const disconnectWebSocket = () => {
 };
 
 // React hook to manage WebSocket connection
-export const useWebSocket = (token: string | null, userId: string | null) => {
+export const useWebSocket = (userId: string | null) => {
   const [socket, setSocket] = useState<any | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Need both userId and token to connect
-    if (!userId || !token) {
+    if (!userId) {
       if (socketInstance) {
         disconnectWebSocket();
         setSocket(null);
@@ -162,11 +152,7 @@ export const useWebSocket = (token: string | null, userId: string | null) => {
       return;
     }
 
-    const newSocket = initializeWebSocket(userId, token);
-    if (!newSocket) {
-      console.warn('Failed to initialize WebSocket - no token available');
-      return;
-    }
+    const newSocket = initializeWebSocket(userId);
 
     setSocket(newSocket);
     setIsConnected(newSocket.connected);
@@ -185,7 +171,7 @@ export const useWebSocket = (token: string | null, userId: string | null) => {
         disconnectWebSocket();
       }
     };
-  }, [userId, token]); // Depend on both userId and token
+  }, [userId]);
 
   return { socket, isConnected };
 };

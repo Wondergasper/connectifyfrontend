@@ -1,5 +1,4 @@
-// src/hooks/useNotifications.ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Notification } from '@/lib/apiTypes';
 
@@ -7,7 +6,6 @@ export const useNotifications = () => {
   return useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.notifications.get(),
-    staleTime: 30 * 1000, // 30 seconds
   });
 };
 
@@ -43,3 +41,4 @@ export const useDeleteNotification = () => {
     },
   });
 };
+

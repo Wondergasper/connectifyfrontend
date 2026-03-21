@@ -1,422 +1,289 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  useConversations,
-  useMessages,
-  useSendMessage,
-  useUnreadCount,
-  useRealTimeMessages
-} from '@/hooks/useMessages';
-import { useProfile } from '@/hooks/useAuth';
-import { ArrowLeft, Search, Send, User, Check, CheckCheck, Paperclip, Smile, Reply, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { Conversation, Message, User as UserType } from '@/lib/apiTypes';
-import { useWebSocket } from '@/lib/websocket';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Send, Search, MessageSquare, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageBubble } from '@/components/MessageBubble';
-import { ReplyPreview } from '@/components/ReplyPreview';
-import { MessageFileUpload } from '@/components/MessageFileUpload';
+import { useConversations, useConversationMessages, useSendMessage } from '@/hooks/useMessages';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWebSocket } from '@/lib/websocket';
+import { Conversation, Message } from '@/lib/apiTypes';
+
+const getOtherParticipant = (conversation: Conversation, currentUserId?: string | null) => {
+  const participant = conversation.participants?.find((p) => {
+    const participantId = typeof p === 'string' ? p : p?._id || p?.id;
+    return participantId && participantId !== currentUserId;
+  });
+
+  return typeof participant === 'string' ? null : participant || null;
+};
+
+const getLastMessageText = (conversation: Conversation) => {
+  if (!conversation.lastMessage) {
+    return 'No messages yet';
+  }
+
+  if (typeof conversation.lastMessage === 'string') {
+    return conversation.lastMessage;
+  }
+
+  return conversation.lastMessage.content || 'No messages yet';
+};
 
 const Messages = () => {
   const navigate = useNavigate();
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const queryClient = useQueryClient();
+  const { userId, user } = useAuth();
+  const { data: conversationsData, isLoading: conversationsLoading } = useConversations();
+  const [search, setSearch] = useState('');
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const { socket } = useWebSocket(userId);
+  const sendMessageMutation = useSendMessage(userId);
 
-  // Fetch user profile and conversations
-  const { data: profileData, isLoading: profileLoading } = useProfile();
-  const { data: conversations, isLoading: conversationsLoading, isError: conversationsError } = useConversations();
-  const { data: unreadCount } = useUnreadCount();
-  const { data: messages, isLoading: messagesLoading, isError: messagesError } = useMessages(selectedChat || '');
-
-  // Get WebSocket connection
-  const { token, userId } = useAuth();
-  const { socket } = useWebSocket(token, userId);
-
-  // Initialize real-time message functionality
-  useRealTimeMessages(selectedChat || '');
-
-  const sendMessageMutation = useSendMessage();
-
-  // Listen for typing indicators
-  useEffect(() => {
-    if (!socket || !selectedChat) return;
-
-    const handleUserTyping = (data: { userId: string; conversationId: string }) => {
-      if (data.conversationId === selectedChat && data.userId !== userId) {
-        setIsTyping(true);
-
-        // Auto-stop typing indicator after 3 seconds
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-        typingTimeoutRef.current = setTimeout(() => {
-          setIsTyping(false);
-        }, 3000);
-      }
-    };
-
-    const handleUserStoppedTyping = (data: { userId: string; conversationId: string }) => {
-      if (data.conversationId === selectedChat) {
-        setIsTyping(false);
-        if (typingTimeoutRef.current) {
-          clearTimeout(typingTimeoutRef.current);
-        }
-      }
-    };
-
-    socket.on('userTyping', handleUserTyping);
-    socket.on('userStoppedTyping', handleUserStoppedTyping);
-
-    return () => {
-      socket.off('userTyping', handleUserTyping);
-      socket.off('userStoppedTyping', handleUserStoppedTyping);
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [socket, selectedChat, userId]);
-
-  // Handle typing events
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setMessageInput(value);
-
-    if (!socket || !selectedChat) return;
-
-    // Emit typing start
-    if (value.length > 0) {
-      socket.emit('typingStart', { conversationId: selectedChat });
+  const conversations = conversationsData?.data || [];
+  const filteredConversations = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return conversations;
     }
 
-    // Debounce typing stop
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('typingStop', { conversationId: selectedChat });
-    }, 1000);
-  };
-
-  // Track online users
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-
-  // Listen for online status changes
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleUserOnline = (data: { userId: string }) => {
-      setOnlineUsers(prev => new Set(prev).add(data.userId));
-    };
-
-    const handleUserOffline = (data: { userId: string }) => {
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(data.userId);
-        return newSet;
-      });
-    };
-
-    const handleUserStatusChanged = (data: { userId: string; isActive: boolean }) => {
-      if (data.isActive) {
-        setOnlineUsers(prev => new Set(prev).add(data.userId));
-      } else {
-        setOnlineUsers(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(data.userId);
-          return newSet;
-        });
-      }
-    };
-
-    socket.on('userOnline', handleUserOnline);
-    socket.on('userOffline', handleUserOffline);
-    socket.on('userStatusChanged', handleUserStatusChanged);
-
-    // Emit that current user is online
-    if (userId) {
-      socket.emit('setOnline');
-    }
-
-    return () => {
-      socket.off('userOnline', handleUserOnline);
-      socket.off('userOffline', handleUserOffline);
-      socket.off('userStatusChanged', handleUserStatusChanged);
-      // Emit offline when component unmounts
-      if (userId) {
-        socket.emit('setOffline');
-      }
-    };
-  }, [socket, userId]);
-
-  // Reply-to message state
-  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
-
-  // File upload states
-  const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-
-  // Filter conversations based on search query
-  const filteredConversations = conversations?.data?.filter((conversation: Conversation) => {
-    if (!searchQuery) return true;
-
-    const otherParticipant = conversation.participants?.find((p: UserType) =>
-      p._id !== profileData?.data?.user?._id
-    );
-
-    return (
-      otherParticipant?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conversation.service?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conversation.lastMessage?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }) || [];
-
-  const handleSendMessage = () => {
-    if (!messageInput.trim() || !selectedChat) return;
-
-    sendMessageMutation.mutate({
-      conversationId: selectedChat,
-      content: messageInput
-    }, {
-      onSuccess: () => {
-        setMessageInput('');
-        // The hook will automatically refetch data
-      },
-      onError: () => {
-        toast.error('Failed to send message');
-      }
+    return conversations.filter((conversation) => {
+      const otherParticipant = getOtherParticipant(conversation, userId);
+      const participantName = otherParticipant?.name?.toLowerCase() || '';
+      const serviceName = typeof conversation.service === 'object' ? conversation.service?.name?.toLowerCase() || '' : '';
+      const lastMessage = getLastMessageText(conversation).toLowerCase();
+      return participantName.includes(query) || serviceName.includes(query) || lastMessage.includes(query);
     });
+  }, [conversations, search, userId]);
+
+  useEffect(() => {
+    if (!selectedConversationId && filteredConversations.length > 0) {
+      setSelectedConversationId(filteredConversations[0]._id || filteredConversations[0].id || null);
+    }
+  }, [filteredConversations, selectedConversationId]);
+
+  const selectedConversation = filteredConversations.find((conversation) => (conversation._id || conversation.id) === selectedConversationId) || null;
+  const conversationId = selectedConversation?._id || selectedConversation?.id || '';
+  const { data: messagesData, isLoading: messagesLoading } = useConversationMessages(conversationId);
+  const messages = messagesData?.data || [];
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const handleNewMessage = (message: Message) => {
+      const messageConversationId = typeof message.conversation === 'string'
+        ? message.conversation
+        : message.conversation?._id || message.conversation?.id;
+
+      if (messageConversationId) {
+        queryClient.invalidateQueries({ queryKey: ['conversation-messages', messageConversationId] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      }
+    };
+
+    const handleConversationUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    };
+
+    socket.on('newMessage', handleNewMessage);
+    socket.on('conversationUpdated', handleConversationUpdated);
+
+    return () => {
+      socket.off('newMessage', handleNewMessage);
+      socket.off('conversationUpdated', handleConversationUpdated);
+    };
+  }, [socket, queryClient]);
+
+  const handleSend = async () => {
+    if (!conversationId || !draft.trim()) {
+      return;
+    }
+
+    await sendMessageMutation.mutateAsync({
+      conversationId,
+      content: draft.trim(),
+    });
+
+    setDraft('');
   };
-
-  if (conversationsError || profileLoading) {
-    return <div className="p-6 text-center text-red-500">Error loading conversations</div>;
-  }
-
-  // Get current user ID from profile
-  const currentUserId = profileData?.data?.user?._id;
 
   return (
-    <div className="h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="px-6 py-4">
-          <div className="flex items-center gap-3 mb-4">
-            <button
-              onClick={() => {
-                if (selectedChat) {
-                  setSelectedChat(null);
-                } else {
-                  navigate(-1);
-                }
-              }}
-              className="p-2 hover:bg-muted rounded-xl transition-smooth"
-            >
-              <ArrowLeft className="w-5 h-5 text-foreground" />
-            </button>
-            <h1 className="text-xl font-bold text-foreground">
-              {selectedChat
-                ? conversations?.data?.find((c: Conversation) => c._id === selectedChat)?.participants?.find((p: UserType) =>
-                  p._id !== currentUserId
-                )?.name || "Messages"
-                : "Messages"}
-              {unreadCount && unreadCount.data?.unreadCount > 0 && (
-                <span className="ml-2 px-2 py-0.5 rounded-full bg-accent text-white text-xs">
-                  {unreadCount.data.unreadCount}
-                </span>
-              )}
-            </h1>
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80"
+          >
+            <ArrowLeft className="w-5 h-5 text-foreground" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Messages</h1>
+            <p className="text-sm text-muted-foreground">Chat with customers and providers</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="rounded-3xl border border-border bg-card shadow-soft overflow-hidden">
+          <div className="p-4 border-b border-border space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search conversations"
+                className="pl-9"
+              />
+            </div>
           </div>
 
-          {!selectedChat && (
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Search messages..."
-                className="h-12 pl-12 pr-4 bg-muted/30 border-0"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
+            {conversationsLoading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="p-4 rounded-2xl bg-muted/30 animate-pulse h-20" />
+                ))}
+              </div>
+            ) : filteredConversations.length > 0 ? (
+              filteredConversations.map((conversation) => {
+                const otherParticipant = getOtherParticipant(conversation, userId);
+                const isSelected = (conversation._id || conversation.id) === selectedConversationId;
+
+                return (
+                  <button
+                    key={conversation._id || conversation.id}
+                    onClick={() => setSelectedConversationId(conversation._id || conversation.id || null)}
+                    className={`w-full text-left p-4 border-b border-border transition-smooth ${isSelected ? 'bg-primary/5' : 'hover:bg-muted/30'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white font-semibold">
+                        {otherParticipant?.name?.charAt(0) || 'M'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-semibold text-foreground truncate">
+                            {otherParticipant?.name || 'Conversation'}
+                          </h3>
+                          {!!conversation.unreadCount && conversation.unreadCount > 0 && (
+                            <span className="text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                              {conversation.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {getLastMessageText(conversation)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {conversation.service && typeof conversation.service === 'object' ? conversation.service.name : 'Direct chat'}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="p-8 text-center">
+                <Users className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <h3 className="font-semibold text-foreground">No conversations</h3>
+                <p className="text-sm text-muted-foreground mt-1">Your messages will appear here once you start chatting.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-border bg-card shadow-soft overflow-hidden min-h-[70vh] flex flex-col">
+          {selectedConversation ? (
+            <>
+              <div className="p-4 border-b border-border flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white font-semibold">
+                  {getOtherParticipant(selectedConversation, userId)?.name?.charAt(0) || 'M'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-semibold text-foreground truncate">
+                    {getOtherParticipant(selectedConversation, userId)?.name || 'Conversation'}
+                  </h2>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {selectedConversation.service && typeof selectedConversation.service === 'object'
+                      ? selectedConversation.service.name
+                      : 'Direct chat'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/10">
+                {messagesLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <div key={index} className={`h-12 rounded-2xl bg-muted/40 animate-pulse ${index % 2 === 0 ? 'ml-auto w-2/3' : 'w-2/3'}`} />
+                    ))}
+                  </div>
+                ) : messages.length > 0 ? (
+                  messages.map((message) => {
+                    const senderId = typeof message.sender === 'string' ? message.sender : message.sender?._id || message.sender?.id;
+                    const isMine = senderId && userId && senderId === userId;
+
+                    return (
+                      <div key={message._id || message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${isMine ? 'bg-primary text-primary-foreground' : 'bg-card border border-border text-foreground'}`}>
+                          <p className="text-sm leading-relaxed">{message.content}</p>
+                          <p className={`text-[11px] mt-1 ${isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                            {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="h-full flex items-center justify-center text-center p-6">
+                    <div>
+                      <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <h3 className="font-semibold text-foreground">No messages yet</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Send a message to start the conversation.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-border bg-card">
+                <div className="flex gap-3 items-end">
+                  <Textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Write a message..."
+                    className="min-h-[56px] resize-none"
+                  />
+                  <Button
+                    onClick={handleSend}
+                    disabled={!draft.trim() || sendMessageMutation.isPending}
+                    className="h-14 px-5"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Send
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-8 text-center">
+              <div>
+                <MessageSquare className="w-14 h-14 text-muted-foreground mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-foreground">Select a conversation</h2>
+                <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                  Pick a thread from the list to read and send messages.
+                </p>
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Chat List or Conversation */}
-      <div className="flex-1 overflow-y-auto">
-        {conversationsLoading && !selectedChat ? (
-          <div className="px-6 pt-4 space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-full p-4 rounded-2xl bg-card border border-border animate-pulse">
-                <div className="flex gap-4">
-                  <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                    <User className="w-7 h-7 text-muted" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div>
-                        <div className="h-4 bg-muted rounded w-1/4 mb-2"></div>
-                        <div className="h-3 bg-muted rounded w-1/3"></div>
-                      </div>
-                      <div className="h-3 bg-muted rounded w-10"></div>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="h-3 bg-muted rounded w-1/2"></div>
-                      <div className="h-4 bg-muted rounded-full w-6 h-6"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : !selectedChat ? (
-          // Chat List
-          <div className="px-6 pt-4 space-y-2">
-            {filteredConversations.map((conversation: Conversation) => {
-              const otherParticipant = conversation.participants?.find((p: UserType) =>
-                p._id !== currentUserId
-              );
-              return (
-                <button
-                  key={conversation._id}
-                  onClick={() => setSelectedChat(conversation._id)}
-                  className="w-full p-4 rounded-2xl bg-card border border-border hover:border-primary transition-smooth text-left shadow-soft hover:shadow-medium"
-                >
-                  <div className="flex gap-4">
-                    <div className="relative w-14 h-14 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0 shadow-soft">
-                      <User className="w-7 h-7 text-white" />
-                      {/* Online Status Indicator */}
-                      {otherParticipant && onlineUsers.has(otherParticipant._id) && (
-                        <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-card"></div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div>
-                          <h3 className="font-semibold text-foreground">{otherParticipant?.name || 'User'}</h3>
-                          <p className="text-xs text-muted-foreground">{conversation.service?.name || 'No service'}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{conversation.lastMessageAt ? new Date(conversation.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-muted-foreground truncate">{conversation.lastMessage}</p>
-                        {conversation.unreadCount > 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-accent text-white text-xs font-medium">
-                            {conversation.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-            {searchQuery && filteredConversations.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No conversations found matching "{searchQuery}"</p>
-              </div>
-            )}
-          </div>
-        ) : messagesError ? (
-          <div className="p-6 text-center text-red-500">Error loading messages</div>
-        ) : messagesLoading ? (
-          <div className="px-6 py-4 space-y-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex justify-start">
-                <div className="max-w-[75%] order-1">
-                  <div className="p-4 rounded-2xl bg-card border border-border rounded-bl-sm">
-                    <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          // Conversation View
-          <div className="px-6 py-4 space-y-4">
-            {messages?.data?.map((message: Message) => {
-              const isCurrentUser = message.sender._id === currentUserId;
-              return (
-                <div
-                  key={message._id}
-                  className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`max-w-[75%] ${isCurrentUser ? "order-2" : "order-1"}`}>
-                    <div
-                      className={`p-4 rounded-2xl ${isCurrentUser
-                        ? "bg-accent text-white rounded-br-sm"
-                        : "bg-card border border-border rounded-bl-sm"
-                        }`}
-                    >
-                      <p className={`text-sm ${isCurrentUser ? "text-white" : "text-foreground"}`}>
-                        {message.content}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-xs text-muted-foreground mt-1 block ${isCurrentUser ? "text-right" : "text-left"
-                        }`}
-                    >
-                      {message.createdAt ? new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Typing Indicator */}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="max-w-[75%] order-1">
-                  <div className="p-4 rounded-2xl bg-card border border-border rounded-bl-sm">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-1 block">typing...</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Message Input (only in conversation view) */}
-      {selectedChat && (
-        <div className="p-6 bg-background/80 backdrop-blur-md border-t border-border">
-          <div className="flex gap-3">
-            <Input
-              placeholder="Type a message..."
-              value={messageInput}
-              onChange={handleInputChange}
-              className="h-12 bg-muted/30 border-0"
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              disabled={sendMessageMutation.isPending}
-            />
-            <Button
-              className="h-12 w-12 p-0 bg-accent hover:bg-accent/90"
-              onClick={handleSendMessage}
-              disabled={sendMessageMutation.isPending || !messageInput.trim()}
-            >
-              {sendMessageMutation.isPending ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Send className="w-5 h-5 text-white" />
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 export default Messages;
+

@@ -12,43 +12,14 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Utility function to extract access token from cookies
-// Backend sets 'accessToken' cookie (not 'token')
-const getTokenFromCookie = (): string | null => {
-  try {
-    const cookies = document.cookie.split(';');
-    const tokenCookie = cookies.find(c => c.trim().startsWith('accessToken='));
-    if (tokenCookie) {
-      const tokenValue = tokenCookie.split('=')[1];
-      return tokenValue ? decodeURIComponent(tokenValue) : null;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error extracting access token from cookie:', error);
-    return null;
-  }
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const { data, isLoading, isError, refetch, isRefetching } = useProfileNoNavigate();
+  const { data, isLoading, isError, isRefetching } = useProfileNoNavigate();
 
   const profileData = data as ApiResponse<UserProfileResponse> | undefined;
   const userId = profileData?.data?.user?._id || null;
   const user = profileData?.data?.user || null;
 
-  // State for JWT token and authentication
-  const [token, setToken] = useState<string | null>(null);
   const [internalIsAuthenticated, setInternalIsAuthenticated] = useState<boolean>(false);
-
-  // Extract token from cookies when profile data changes
-  useEffect(() => {
-    if (profileData?.data?.user) {
-      const extractedToken = getTokenFromCookie();
-      setToken(extractedToken);
-    } else {
-      setToken(null);
-    }
-  }, [profileData]);
 
   // Update authentication status when profile data changes
   useEffect(() => {
@@ -61,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      token, // Now providing the actual JWT token for WebSocket authentication
+      token: null,
       userId,
       user,
       isAuthenticated,

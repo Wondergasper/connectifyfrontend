@@ -1,56 +1,47 @@
-// src/lib/apiTypes.ts - API response and error types
-
-// User related types
-export interface User {
-  _id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  profile?: UserProfile;
+﻿export interface Pagination {
+  page?: number;
+  limit?: number;
+  total?: number;
+  pages?: number;
 }
 
-export interface UserProfile {
-  bio?: string;
-  location?: {
-    address: string;
-    coordinates?: [number, number];
-  };
-  verification?: {
-    verified: boolean;
-    status?: string;
-    documents?: string[];
-  };
-  image?: string;
-}
-
-// Generic API response type
-// Generic API response type
-export type ApiResponse<T = unknown> = T & {
-  message?: string;
-  success?: boolean;
-  // Some endpoints might still return 'data' explicitly, which would be part of T
-};
-
-// Error response type
 export interface ApiErrorResponse {
-  error: string;
-  message: string;
-  statusCode: number;
-  details?: Record<string, unknown>;
+  success?: boolean;
+  error?: string;
+  message?: string;
+  errors?: unknown;
+  statusCode?: number;
 }
 
-// Authentication related types
+export interface ApiResponse<T = unknown> {
+  success?: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+  errors?: unknown;
+  pagination?: Pagination;
+  cache?: boolean;
+  responseTimeMs?: number;
+  count?: number;
+  averageRating?: number;
+  newerExists?: boolean;
+  booking?: Booking;
+  bookings?: Booking[];
+  service?: Service;
+  services?: Service[];
+  review?: Review;
+  reviews?: Review[];
+  notification?: Notification;
+  notifications?: Notification[];
+  receipt?: Receipt;
+  user?: User;
+  token?: string;
+}
+
 export interface LoginRequest {
   email?: string;
   phone?: string;
   password: string;
-}
-
-export interface LoginResponse {
-  user: User;
-  token: string;
-  refreshToken?: string;
 }
 
 export interface RegisterRequest {
@@ -58,207 +49,406 @@ export interface RegisterRequest {
   email: string;
   phone: string;
   password: string;
+  role?: 'customer' | 'provider';
+}
+
+export interface LocationPoint {
+  type?: string;
+  coordinates?: [number, number];
+  address?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
+export interface ProfilePortfolioItem {
+  url: string;
+  publicId?: string;
+  uploadedAt?: string;
+}
+
+export interface UserProfile {
+  avatar?: string;
+  bio?: string;
+  location?: LocationPoint;
+  verification?: {
+    verified?: boolean;
+    documents?: string[];
+    verifiedAt?: string;
+  };
+  social?: {
+    facebook?: string;
+    twitter?: string;
+    instagram?: string;
+  };
+  portfolio?: ProfilePortfolioItem[];
+}
+
+export interface ProviderDetails {
+  category?: string;
+  hourlyRate?: number;
+  yearsOfExperience?: number;
+  servicesOffered?: string[];
+  portfolio?: string[];
+  certifications?: string[];
+  availability?: Record<string, { start?: string; end?: string; available?: boolean }>;
+}
+
+export interface RatingSummary {
+  average?: number;
+  count?: number;
+}
+
+export interface WalletSummary {
+  balance?: number;
+  currency?: string;
+  transactions?: WalletTransaction[];
+}
+
+export interface User {
+  _id?: string;
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role?: 'customer' | 'provider' | 'admin' | string;
+  profile?: UserProfile;
+  providerDetails?: ProviderDetails;
+  rating?: RatingSummary;
+  completedJobsCount?: number;
+  wallet?: WalletSummary;
+  isActive?: boolean;
+  refreshToken?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpire?: string;
+  fcmToken?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserProfileResponse {
   user: User;
 }
 
-// Services related types
+export interface LoginResponse {
+  user?: User;
+  token?: string;
+}
+
 export interface ServiceSearchParams {
   search?: string;
   category?: string;
   location?: string;
 }
 
-export interface Service {
-  _id: string;
-  name: string;
-  description: string;
-  category: string;
-  provider: User | string; // Can be user object or just ID
-  price: number;
-  priceType?: 'hourly' | 'fixed';
-  duration?: number; // in minutes
-  rating?: number;
-  reviewCount?: number;
-  images?: string[];
-  location?: {
-    address: string;
-    coordinates?: [number, number];
-  };
-  averageRating?: number;
-}
-
 export interface CreateServiceRequest {
   name: string;
-  description: string;
   category: string;
+  description: string;
   price: number;
-  priceType?: 'hourly' | 'fixed';
-  duration?: number;
+  priceType?: 'fixed' | 'hourly' | 'negotiable';
+  duration: number;
   images?: string[];
-  location?: {
-    address: string;
-    coordinates?: [number, number];
-  };
+  location?: LocationPoint;
+  servicesOffered?: string[];
+  gallery?: string[];
+  isActive?: boolean;
 }
 
-// Booking related types
+export interface Service {
+  _id?: string;
+  id?: string;
+  name: string;
+  provider?: string | User;
+  category?: string;
+  description?: string;
+  price?: number;
+  priceType?: 'fixed' | 'hourly' | 'negotiable' | string;
+  duration?: number;
+  images?: string[];
+  location?: LocationPoint;
+  rating?: RatingSummary;
+  averageRating?: number;
+  reviewCount?: number;
+  servicesOffered?: string[];
+  gallery?: string[];
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BookingAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  location?: LocationPoint;
+}
+
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected'
+  | 'rescheduled'
+  | string;
+
 export interface Booking {
-  _id: string;
-  service: string | Service; // Can be service ID or service object
-  customer: string | User; // Can be user ID or user object
-  provider: string | User; // Can be user ID or user object
+  _id?: string;
+  id?: string;
+  customer?: string | User;
+  provider?: string | User;
+  service?: string | Service;
   date: string;
-  startTime: string;
-  endTime: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'done';
-  totalAmount: number;
+  time: string;
+  duration?: number;
+  status?: BookingStatus;
+  totalAmount?: number;
+  currency?: string;
+  paymentStatus?: 'pending' | 'paid' | 'refunded' | string;
   notes?: string;
+  address?: BookingAddress;
+  completedAt?: string;
   rating?: {
-    value: number;
+    value?: number;
     comment?: string;
+    date?: string;
   };
-  address?: {
-    address: string;
-    coordinates?: [number, number];
-  };
+  serviceImages?: string[];
+  reminderSent?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateBookingRequest {
   service: string;
+  providerId?: string;
   date: string;
   time: string;
-  totalAmount: number;
+  duration?: number;
+  totalAmount?: number;
   notes?: string;
-  address?: {
-    address: string;
-    coordinates?: [number, number];
-  };
+  address?: BookingAddress;
 }
 
-// Wallet related types
 export interface WalletBalance {
   balance: number;
-  currency: string;
+  currency?: string;
+  availableBalance?: number;
+  pendingBalance?: number;
 }
 
-export interface Transaction {
-  _id: string;
+export interface WalletTransaction {
+  _id?: string;
+  id?: string;
+  type: 'credit' | 'debit' | string;
   amount: number;
-  type: 'credit' | 'debit';
-  description: string;
-  date: string;
+  description?: string;
+  title?: string;
+  status?: string;
+  date?: string;
+  createdAt?: string;
+  reference?: string;
+  bookingId?: string;
 }
+
+export type Transaction = WalletTransaction;
 
 export interface AddFundsRequest {
   amount: number;
-  paymentMethod: string;
-}
-
-// Category related types
-export interface Category {
-  _id: string;
-  name: string;
+  paymentMethod?: string;
+  reference?: string;
   description?: string;
-  isActive: boolean;
 }
 
-// Availability related types
-export interface AvailabilitySlot {
-  date: string;
-  startTime: string;
-  endTime: string;
-  available: boolean;
+export interface NotificationDataMap {
   bookingId?: string;
+  serviceId?: string;
+  messageId?: string;
+  [key: string]: unknown;
 }
 
-export interface Availability {
-  providerId: string;
-  slots: AvailabilitySlot[];
-}
-
-export interface UpdateAvailabilityRequest {
-  providerId: string;
-  date?: string;
-  startTime?: string;
-  endTime?: string;
-  available: boolean;
-  bookingId?: string;
-}
-
-// Notification related types
 export interface Notification {
-  _id: string;
-  user: string;
+  _id?: string;
+  id?: string;
+  user?: string | User;
   title: string;
-  message: string;
-  type: string;
-  read: boolean;
-  createdAt: string;
+  message?: string;
+  content?: string;
+  type: 'booking' | 'payment' | 'review' | 'system' | 'message' | string;
+  read?: boolean;
+  readAt?: string;
+  data?: NotificationDataMap;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Message related types
+export interface MessageAttachment {
+  url?: string;
+  type?: string;
+  size?: number;
+  name?: string;
+}
+
+export interface MessageReaction {
+  user?: string | User;
+  emoji?: string;
+  addedAt?: string;
+}
+
+export interface ConversationReadStatus {
+  user?: string | User;
+  lastReadMessage?: string | Message;
+  lastReadAt?: string;
+  unreadCount?: number;
+}
+
+export interface ConversationLastMessage {
+  content?: string;
+  type?: string;
+  sender?: string | User;
+  timestamp?: string;
+}
+
 export interface Conversation {
-  _id: string;
-  participants: User[];
-  lastMessage: Message;
-  unreadCount: number;
-  createdAt: string;
+  _id?: string;
+  id?: string;
+  participants?: Array<string | User>;
+  participantReadStatus?: ConversationReadStatus[];
+  service?: string | Service;
+  booking?: string | Booking;
+  name?: string;
+  isArchived?: boolean;
+  isPinned?: boolean;
+  unreadCount?: number;
+  type?: 'direct' | 'group' | string;
+  membersCount?: number;
+  lastMessage?: string | ConversationLastMessage;
+  lastMessageAt?: string;
+  isGroup?: boolean;
+  groupInfo?: {
+    name?: string;
+    avatar?: string;
+    description?: string;
+    createdBy?: string | User;
+    isPublic?: boolean;
+  };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Message {
-  _id: string;
-  conversationId: string;
-  sender: User;
+  _id?: string;
+  id?: string;
+  conversation?: string | Conversation;
+  sender?: string | User;
+  recipient?: string | User;
   content: string;
-  read: boolean;
-  createdAt: string;
+  contentType?: 'text' | 'image' | 'document' | 'location' | string;
+  attachments?: MessageAttachment[];
+  read?: boolean;
+  readBy?: Array<{ user?: string | User; readAt?: string }>;
+  delivered?: boolean;
+  deliveredAt?: string;
+  status?: 'sent' | 'delivered' | 'read' | string;
+  repliedTo?: string | Message;
+  reactions?: MessageReaction[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Review related types
+export interface AvailabilitySlot {
+  startTime: string;
+  endTime: string;
+  isBooked?: boolean;
+  bookingId?: string | Booking | null;
+}
+
+export interface Availability {
+  _id?: string;
+  id?: string;
+  provider?: string | User;
+  providerId?: string;
+  date: string;
+  slots: AvailabilitySlot[];
+  isAvailable?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateAvailabilityRequest {
+  date: string;
+  slots?: AvailabilitySlot[];
+  isAvailable?: boolean;
+}
+
 export interface Review {
-  _id: string;
-  serviceId: string;
-  customerId: string;
-  providerId: string;
-  bookingId: string;
+  _id?: string;
+  id?: string;
+  customer?: string | User;
+  provider?: string | User;
+  booking?: string | Booking;
+  service?: string | Service;
   rating: number;
-  comment: string;
-  createdAt: string;
+  comment?: string;
+  images?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateReviewRequest {
   bookingId: string;
   rating: number;
-  comment: string;
+  comment?: string;
+  images?: string[];
 }
 
-// Verification related types
 export interface VerificationRequest {
-  userId: string;
-  documents: string[];
-  type: string;
-  status: string;
-  reason?: string;
+  _id?: string;
+  id?: string;
+  user?: string | User;
+  documentType?: string;
+  documentNumber?: string;
+  documentFront?: string;
+  documentBack?: string;
+  status?: string;
+  verifiedBy?: string | User;
+  verificationDate?: string;
+  rejectionReason?: string;
+  additionalInfo?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Receipt related types
 export interface Receipt {
-  _id: string;
-  bookingId: string;
-  customerId: string;
-  providerId: string;
-  serviceId: string;
-  amount: number;
-  items: {
-    description: string;
-    quantity: number;
-    price: number;
-    total: number;
-  }[];
-  tax?: number;
-  total: number;
-  createdAt: string;
+  _id?: string;
+  id?: string;
+  booking?: Booking;
+  provider?: User;
+  service?: Service;
+  transactionId?: string;
+  paymentMethod?: string;
+  totalAmount?: number;
+  serviceFee?: number;
+  platformFee?: number;
+  currency?: string;
+  pdfUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Category {
+  _id?: string;
+  id?: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }

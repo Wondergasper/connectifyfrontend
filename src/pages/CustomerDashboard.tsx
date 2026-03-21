@@ -70,12 +70,12 @@ const CustomerDashboard = () => {
   const allBookings = bookingsData?.data || [];
   const totalBookings = allBookings.length;
   const completedBookings = allBookings.filter((booking: { status: string }) =>
-    ['completed', 'done'].includes(booking.status)
+    booking.status === 'completed'
   ).length;
 
   // Calculate average rating from completed bookings
   const completedRatings = allBookings
-    .filter((booking: { status: string }) => ['completed', 'done'].includes(booking.status))
+    .filter((booking: { status: string }) => booking.status === 'completed')
     .map((booking: { rating?: { value: number } }) => booking.rating?.value)
     .filter((rating: number | undefined): rating is number => rating !== undefined);
 

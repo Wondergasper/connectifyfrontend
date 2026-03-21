@@ -1,7 +1,6 @@
-// src/hooks/useServices.ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Service, CreateServiceRequest, ServiceSearchParams } from '@/lib/apiTypes';
+import { Category, CreateServiceRequest, ServiceSearchParams } from '@/lib/apiTypes';
 
 export const useServices = (params?: ServiceSearchParams) => {
   return useQuery({
@@ -13,47 +12,17 @@ export const useServices = (params?: ServiceSearchParams) => {
 export const useService = (id: string) => {
   return useQuery({
     queryKey: ['service', id],
-    queryFn: () => api.services.getById(id),
-  });
-};
-
-export const useCreateService = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (serviceData: CreateServiceRequest) => api.services.create(serviceData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
+    queryFn: async () => {
+      const response = await api.services.getById(id);
+      return response.service ?? response.data ?? response;
     },
-  });
-};
-
-export const useUpdateService = (id: string) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (serviceData: CreateServiceRequest) => api.services.update(id, serviceData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-      queryClient.invalidateQueries({ queryKey: ['service', id] });
-    },
-  });
-};
-
-export const useDeleteService = (id: string) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: () => api.services.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services'] });
-    },
+    enabled: !!id,
   });
 };
 
 export const useSearchServices = (params?: ServiceSearchParams) => {
   return useQuery({
-    queryKey: ['searchServices', params],
+    queryKey: ['services-search', params],
     queryFn: () => api.services.search(params),
   });
 };
@@ -64,3 +33,43 @@ export const useCategories = (params?: { isActive?: boolean }) => {
     queryFn: () => api.categories.get(params),
   });
 };
+
+export const useCreateService = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (serviceData: CreateServiceRequest) => api.services.create(serviceData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['services-search'] });
+    },
+  });
+};
+
+export const useUpdateService = (id: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (serviceData: CreateServiceRequest) => api.services.update(id, serviceData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['service', id] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['services-search'] });
+    },
+  });
+};
+
+export const useDeleteService = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.services.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      queryClient.invalidateQueries({ queryKey: ['services-search'] });
+    },
+  });
+};
+
+export const useServiceSearch = useSearchServices;
+

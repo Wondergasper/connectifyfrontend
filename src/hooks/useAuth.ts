@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { LoginRequest, RegisterRequest, User } from '@/lib/apiTypes';
+import { disconnectWebSocket } from '@/lib/websocket';
 
 export const useLogin = () => {
   const queryClient = useQueryClient();
@@ -60,9 +61,8 @@ export const useProfileNoNavigate = () => {
         error.message.includes('Invalid refresh token')
       ) {
         // Don't show error toast on initial load - user might just not be logged in
-        // Clear any cached data
-        localStorage.clear(); // Clear any local storage if needed
-        // Note: Navigation will be handled by parent components
+        // Navigation will be handled by parent components
+        disconnectWebSocket();
       } else {
         toast.error('Failed to load profile. Please try again later.');
       }
@@ -92,8 +92,8 @@ export const useProfile = () => {
         error.message.includes('No refresh token provided') ||
         error.message.includes('Invalid refresh token')
       ) {
-        // Clear any cached data and redirect to auth
-        localStorage.clear(); // Clear any local storage if needed
+        // Redirect to auth when the cookie-backed session is no longer valid
+        disconnectWebSocket();
         navigate('/auth', { replace: true });
         // Only show toast if it's not the initial load (to avoid spamming on first visit)
         // But for now, we'll show it to be explicit
@@ -146,6 +146,7 @@ export const useLogout = () => {
     onSuccess: () => {
       // Clear any cached data
       queryClient.clear();
+      disconnectWebSocket();
       // Navigate to auth page
       navigate('/auth', { replace: true });
       toast.success('You have been logged out successfully');
@@ -154,6 +155,7 @@ export const useLogout = () => {
       console.error('Logout error:', error);
       // Even if logout fails on the backend, clear local state and navigate to auth
       queryClient.clear();
+      disconnectWebSocket();
       navigate('/auth', { replace: true });
 
       // Show a different message if it's a network error

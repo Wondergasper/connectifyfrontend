@@ -36,7 +36,7 @@ export const RescheduleModal = ({
         enabled: !!providerId && !!newDate && newDate !== currentDate
     });
 
-    const times = availabilityData?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
+    const times = availabilityData?.data?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
         "09:00", "10:00", "11:00", "12:00",
         "13:00", "14:00", "15:00", "16:00",
         "17:00", "18:00"
@@ -50,8 +50,9 @@ export const RescheduleModal = ({
         setIsSubmitting(true);
         try {
             await api.bookings.update(bookingId, {
-                date: newDate,
-                time: newTime,
+                status: 'rescheduled',
+                newDate,
+                newTime,
                 notes: reason ? `Reschedule reason: ${reason}` : undefined
             });
             onSuccess();

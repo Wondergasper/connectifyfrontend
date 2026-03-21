@@ -13,7 +13,10 @@ export const useBookings = (params?: { type?: string; status?: string }) => {
 export const useBooking = (id: string) => {
   return useQuery({
     queryKey: ['booking', id],
-    queryFn: () => api.bookings.getById(id),
+    queryFn: async () => {
+      const response = await api.bookings.getById(id);
+      return response.booking ?? response.data ?? response;
+    },
   });
 };
 
@@ -25,9 +28,14 @@ export const useCreateBooking = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       // Update availability after booking creation
-      if (data?.booking?.provider) {
+      const providerId =
+        typeof data?.booking?.provider === 'object'
+          ? data.booking.provider._id
+          : data?.booking?.provider;
+
+      if (providerId) {
         queryClient.invalidateQueries({
-          queryKey: ['availability', { providerId: data.booking.provider }]
+          queryKey: ['availability', { providerId }]
         });
       }
     },

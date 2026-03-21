@@ -4,16 +4,14 @@ import { ArrowLeft, Star, MapPin, Clock, Shield, Calendar, MessageSquare } from 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useService } from "@/hooks/useServices";
 
 const ServiceDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
   // Fetch service details
-  const { data: serviceData, isLoading, isError } = useQuery({
-    queryKey: ['service', id],
-    queryFn: () => api.services.getById(id!),
-  });
+  const { data: serviceData, isLoading, isError } = useService(id!);
 
   // Fetch reviews for this service
   const { data: reviewsData } = useQuery({

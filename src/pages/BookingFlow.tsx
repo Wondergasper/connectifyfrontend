@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useCreateBooking } from "@/hooks/useBookings";
 import { useWalletBalance } from "@/hooks/useWallet";
-import { useProfile } from "@/hooks/useAuth";
+import { useService } from "@/hooks/useServices";
 import { toast } from "sonner";
 
 const BookingFlow = () => {
@@ -19,18 +19,11 @@ const BookingFlow = () => {
   const serviceId = searchParams.get('serviceId') || '';
 
   // Fetch service data using the service ID from query params
-  const { data: serviceData, isLoading: serviceLoading } = useQuery({
-    queryKey: ['service', serviceId],
-    queryFn: () => api.services.getById(serviceId),
-    enabled: !!serviceId
-  });
+  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId);
 
   // Fetch wallet balance
   const { data: walletData } = useWalletBalance();
   const walletBalance = walletData?.data?.balance || 0;
-
-  // Fetch user profile for address
-  const { data: profileData } = useProfile();
 
   // Fetch availability based on the provider and selected date
   const { data: availabilityData, isLoading: availabilityLoading } = useQuery({
@@ -43,7 +36,7 @@ const BookingFlow = () => {
   });
 
   // Use availability data if available, otherwise use static times
-  const times = availabilityData?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
+  const times = availabilityData?.data?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
     "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00",
     "17:00", "18:00"
@@ -63,9 +56,10 @@ const BookingFlow = () => {
       service: serviceId,
       date: selectedDate,
       time: selectedTime,
-      totalAmount: serviceData?.price,
+      duration: serviceData?.duration,
+      totalAmount: serviceData?.price || 0,
       notes: notes || "",
-      address: serviceData?.location || {} // Use actual customer address from profile if available
+      address: serviceData?.location || {}
     };
 
     createBooking(bookingData, {
@@ -344,3 +338,4 @@ const BookingFlow = () => {
 };
 
 export default BookingFlow;
+

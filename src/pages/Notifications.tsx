@@ -1,10 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, MessageSquare, Star, Wallet, CheckCheck } from "lucide-react";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useMarkAllNotificationsAsRead, useNotifications } from "@/hooks/useNotifications";
+import { toast } from "sonner";
 
 const Notifications = () => {
   const navigate = useNavigate();
   const { data: notificationsData, isLoading } = useNotifications();
+  const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllNotificationsAsRead();
 
   const notifications = notificationsData?.data || [];
 
@@ -31,7 +33,13 @@ const Notifications = () => {
             </button>
             <h1 className="text-xl font-bold text-foreground">Notifications</h1>
           </div>
-          <button className="text-sm font-medium text-accent hover:text-accent/80 transition-smooth">
+          <button
+            onClick={() => markAllRead(undefined, {
+              onSuccess: () => toast.success('All notifications marked as read')
+            })}
+            disabled={isMarkingAll}
+            className="text-sm font-medium text-accent hover:text-accent/80 transition-smooth disabled:opacity-60"
+          >
             Mark all read
           </button>
         </div>

@@ -36,7 +36,7 @@ const ProviderDashboard = () => {
 
   const totalJobs = allBookings.length;
   const jobsDone = allBookings.filter((booking: { status: string }) =>
-    ['completed', 'done'].includes(booking.status)
+    booking.status === 'completed'
   ).length;
 
   // Calculate average rating from reviews

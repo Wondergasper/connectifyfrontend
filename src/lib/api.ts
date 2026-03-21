@@ -300,9 +300,9 @@ class ApiClient {
     },
     update: (availabilityData: UpdateAvailabilityRequest) =>
       this.request<ApiResponse<Availability>>('/availability', { method: 'PUT', body: JSON.stringify(availabilityData) }),
-    bookSlot: (slotData: { date: string; startTime: string; bookingId: string }) =>
+    bookSlot: (slotData: { providerId: string; date: string; startTime: string; bookingId: string }) =>
       this.request<ApiResponse<Availability>>('/availability/book-slot', { method: 'PUT', body: JSON.stringify(slotData) }),
-    unbookSlot: (slotData: { date: string; startTime: string; bookingId: string }) =>
+    unbookSlot: (slotData: { providerId: string; date: string; startTime: string; bookingId: string }) =>
       this.request<ApiResponse<Availability>>('/availability/unbook-slot', { method: 'PUT', body: JSON.stringify(slotData) }),
   };
 
