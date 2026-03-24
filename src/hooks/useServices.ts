@@ -1,4 +1,4 @@
-﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Category, CreateServiceRequest, ServiceSearchParams } from '@/lib/apiTypes';
 
@@ -14,7 +14,9 @@ export const useService = (id: string) => {
     queryKey: ['service', id],
     queryFn: async () => {
       const response = await api.services.getById(id);
-      return response.service ?? response.data ?? response;
+      // API returns { success, service } or { success, data } — unwrap to the Service object
+      const service = (response as any).service ?? (response as any).data ?? response;
+      return service as import('@/lib/apiTypes').Service;
     },
     enabled: !!id,
   });

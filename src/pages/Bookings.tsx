@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useBookings } from '@/hooks/useBookings';
+import { api } from '@/lib/api';
 import { ArrowLeft, Calendar, Clock, MapPin, Star, MessageCircle, User, RefreshCw, Filter, Grid, List } from "lucide-react";
 import { toast } from "sonner";
 import { Booking } from '@/lib/apiTypes';

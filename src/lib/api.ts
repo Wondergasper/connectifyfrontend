@@ -24,7 +24,7 @@ import {
   VerificationRequest,
   Receipt,
   Category,
-  User
+  User,
 } from './apiTypes';
 
 // Use /api in development to leverage Vite proxy
@@ -38,17 +38,13 @@ class ApiClient {
     this.baseUrl = API_BASE_URL;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    // For credentials (cookies), we need to include them in requests
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      credentials: 'include', // Include cookies in requests
+      credentials: 'include',
       ...options,
     };
 
@@ -60,57 +56,39 @@ class ApiClient {
         attempt++;
         const response = await fetch(`${this.baseUrl}${endpoint}`, config);
 
+        // 429 Rate-limit — retry with backoff
         if (response.status === 429) {
           if (attempt >= maxRetries) {
-            const errorMsg = `Too many requests. Please try again in a few moments.`;
-            throw new Error(errorMsg);
+            throw new Error('Too many requests. Please try again in a few moments.');
           }
-          // Parse Retry-After header, but cap at 5 seconds for better UX
           const retryAfter = response.headers.get('Retry-After');
-          let waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 1000;
-          // Cap the wait time at 5 seconds maximum to prevent excessive delays
-          waitMs = Math.min(waitMs, 5000);
-          console.warn(`Received 429 for ${endpoint}. Retrying in ${waitMs / 1000}s (attempt ${attempt}/${maxRetries})...`);
+          const waitMs = Math.min(retryAfter ? parseInt(retryAfter, 10) * 1000 : 1000, 5000);
+          console.warn(`Rate limited on ${endpoint}. Retrying in ${waitMs / 1000}s (${attempt}/${maxRetries})...`);
           await new Promise(res => setTimeout(res, waitMs));
-          continue; // retry
+          continue;
         }
 
-        // Check for authentication errors and try to refresh token automatically
+        // 401 — try token refresh, then retry
         if (response.status === 401) {
-          const errorData = await response.json().catch(() => ({} as ApiErrorResponse));
           console.log('Received 401, attempting token refresh...');
-
-          // Attempt to refresh the token using httpOnly cookies
-          // Refresh token is automatically sent via cookies with credentials: 'include'
           const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
             method: 'POST',
-            credentials: 'include', // Include cookies for refresh token
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
           });
 
           if (refreshResponse.ok) {
             console.log('Token refresh successful, retrying original request...');
-            // Add a small delay to ensure cookies are properly updated
             await new Promise(resolve => setTimeout(resolve, 100));
-            // After successful refresh, the cookies should be updated
-            // Retry the original request
             const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
-
             if (!retryResponse.ok) {
               const retryError = await retryResponse.json().catch(() => ({} as ApiErrorResponse));
-              const retryErrorMessage = retryError.message || retryError.error || `Retry failed with status: ${retryResponse.status}`;
-              throw new Error(retryErrorMessage);
+              throw new Error(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`);
             }
-
             return await retryResponse.json();
           } else {
-            // Refresh also failed, clear any stored data and throw error
             const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
-            console.log('Token refresh failed:', refreshError);
-            const refreshErrorMessage = refreshError.message || refreshError.error || 'Session expired. Please log in again.';
-            throw new Error(refreshErrorMessage);
+            throw new Error(refreshError.message || refreshError.error || 'Session expired. Please log in again.');
           }
         }
 
@@ -118,22 +96,14 @@ class ApiClient {
           const errorData = await response.json().catch(() => ({
             message: `HTTP error! status: ${response.status}`,
             error: 'Network Error',
-            statusCode: response.status
+            statusCode: response.status,
           } as ApiErrorResponse));
 
-          // Handle specific error codes with more descriptive messages
           let errorMessage = errorData.error || errorData.message || `HTTP error! status: ${response.status}`;
-
-          // Add more context for specific error codes
-          if (response.status === 400) {
-            errorMessage = errorData.error || errorData.message || 'Invalid request. Please check your input.';
-          } else if (response.status === 403) {
-            errorMessage = errorData.error || errorData.message || 'Access forbidden. You do not have permission to perform this action.';
-          } else if (response.status === 404) {
-            errorMessage = errorData.error || errorData.message || 'Resource not found. The requested resource does not exist.';
-          } else if (response.status === 500) {
-            errorMessage = errorData.error || errorData.message || 'Server error. Please try again later.';
-          }
+          if (response.status === 400) errorMessage = errorData.error || errorData.message || 'Invalid request. Please check your input.';
+          else if (response.status === 403) errorMessage = errorData.error || errorData.message || 'Access forbidden.';
+          else if (response.status === 404) errorMessage = errorData.error || errorData.message || 'Resource not found.';
+          else if (response.status === 500) errorMessage = errorData.error || errorData.message || 'Server error. Please try again later.';
 
           throw new Error(errorMessage);
         }
@@ -142,23 +112,17 @@ class ApiClient {
       }
     } catch (error) {
       console.error(`API request error for ${endpoint}:`, error);
-
-      // Handle network errors or other non-HTTP errors
       if (error instanceof TypeError) {
         throw new Error('Network error. Please check your connection and try again.');
       }
-
-      // Re-throw the error to be handled by calling code
       throw error;
     }
   }
 
-  // Auth methods
+  // ── Auth ──────────────────────────────────────────────────────────────────
   auth = {
-    login: (credentials: LoginRequest) => {
-      // Store tokens after successful login (cookies are set by the server)
-      return this.request<ApiResponse<LoginResponse>>('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-    },
+    login: (credentials: LoginRequest) =>
+      this.request<ApiResponse<LoginResponse>>('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
 
     register: (userData: RegisterRequest) =>
       this.request<ApiResponse<UserProfileResponse>>('/auth/register', { method: 'POST', body: JSON.stringify(userData) }),
@@ -172,11 +136,8 @@ class ApiClient {
     logout: () =>
       this.request<ApiResponse<{ message: string }>>('/auth/logout', { method: 'POST' }),
 
-    // Refresh token using httpOnly cookies (no localStorage needed)
-    refreshToken: () => {
-      // Refresh token is automatically sent via httpOnly cookies
-      return this.request<ApiResponse<{ token: string }>>('/auth/refresh', { method: 'POST' });
-    },
+    refreshToken: () =>
+      this.request<ApiResponse<{ token: string }>>('/auth/refresh', { method: 'POST' }),
 
     forgotPassword: (email: string) =>
       this.request<ApiResponse<{ data: string }>>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
@@ -185,7 +146,7 @@ class ApiClient {
       this.request<ApiResponse<{ data: string }>>(`/auth/reset-password/${token}`, { method: 'PUT', body: JSON.stringify({ password }) }),
   };
 
-  // User methods
+  // ── Users ─────────────────────────────────────────────────────────────────
   users = {
     get: (userId: string) => this.request<ApiResponse<User>>(`/users/${userId}`),
     getAll: () => this.request<ApiResponse<User[]>>('/users'),
@@ -193,16 +154,14 @@ class ApiClient {
       this.request<ApiResponse<User>>(`/users/${userId}`, { method: 'PUT', body: JSON.stringify(userData) }),
   };
 
-  // Services methods
+  // ── Services ──────────────────────────────────────────────────────────────
   services = {
     get: (params?: ServiceSearchParams) => {
-      const queryParams = new URLSearchParams();
-      if (params?.search) queryParams.append('search', params.search);
-      if (params?.category) queryParams.append('category', params.category);
-
-      const queryString = queryParams.toString();
-      const endpoint = queryString ? `/services?${queryString}` : '/services';
-      return this.request<ApiResponse<{ data: Service[] }>>(endpoint);
+      const qp = new URLSearchParams();
+      if (params?.search) qp.append('search', params.search);
+      if (params?.category) qp.append('category', params.category);
+      const qs = qp.toString();
+      return this.request<ApiResponse<{ data: Service[] }>>(qs ? `/services?${qs}` : '/services');
     },
     getById: (id: string) => this.request<ApiResponse<Service>>(`/services/${id}`),
     create: (serviceData: CreateServiceRequest) =>
@@ -212,27 +171,23 @@ class ApiClient {
     delete: (id: string) =>
       this.request<ApiResponse<{ message: string }>>(`/services/${id}`, { method: 'DELETE' }),
     search: (params?: ServiceSearchParams) => {
-      const queryParams = new URLSearchParams();
-      if (params?.search) queryParams.append('search', params.search);
-      if (params?.category) queryParams.append('category', params.category);
-      if (params?.location) queryParams.append('location', params.location);
-
-      const queryString = queryParams.toString();
-      const endpoint = queryString ? `/services/search?${queryString}` : '/services/search';
-      return this.request<ApiResponse<{ data: Service[] }>>(endpoint);
+      const qp = new URLSearchParams();
+      if (params?.search) qp.append('search', params.search);
+      if (params?.category) qp.append('category', params.category);
+      if (params?.location) qp.append('location', params.location);
+      const qs = qp.toString();
+      return this.request<ApiResponse<{ data: Service[] }>>(qs ? `/services/search?${qs}` : '/services/search');
     },
   };
 
-  // Bookings methods
+  // ── Bookings ──────────────────────────────────────────────────────────────
   bookings = {
     get: (params?: { type?: string; status?: string }) => {
-      const queryParams = new URLSearchParams();
-      if (params?.type) queryParams.append('type', params.type);
-      if (params?.status) queryParams.append('status', params.status);
-
-      const queryString = queryParams.toString();
-      const endpoint = queryString ? `/bookings?${queryString}` : '/bookings';
-      return this.request<ApiResponse<{ data: Booking[] }>>(endpoint);
+      const qp = new URLSearchParams();
+      if (params?.type) qp.append('type', params.type);
+      if (params?.status) qp.append('status', params.status);
+      const qs = qp.toString();
+      return this.request<ApiResponse<{ data: Booking[] }>>(qs ? `/bookings?${qs}` : '/bookings');
     },
     getById: (id: string) => this.request<ApiResponse<Booking>>(`/bookings/${id}`),
     create: (bookingData: CreateBookingRequest) =>
@@ -243,17 +198,65 @@ class ApiClient {
       this.request<ApiResponse<Booking>>(`/bookings/${id}/rating`, { method: 'POST', body: JSON.stringify(ratingData) }),
   };
 
-  // Wallet methods
+  // ── Wallet ────────────────────────────────────────────────────────────────
   wallet = {
-    getBalance: () => this.request<ApiResponse<WalletBalance>>('/wallet/balance'),
-    getTransactions: () => this.request<ApiResponse<Transaction[]>>('/wallet/transactions'),
+    getBalance: () =>
+      this.request<ApiResponse<WalletBalance>>('/wallet/balance'),
+
+    getTransactions: (params?: { page?: number; limit?: number; type?: string }) => {
+      const qp = new URLSearchParams();
+      if (params?.page) qp.append('page', String(params.page));
+      if (params?.limit) qp.append('limit', String(params.limit));
+      if (params?.type) qp.append('type', params.type);
+      const qs = qp.toString();
+      return this.request<ApiResponse<Transaction[]>>(qs ? `/wallet/transactions?${qs}` : '/wallet/transactions');
+    },
+
     processPayment: (paymentData: Record<string, unknown>) =>
-      this.request<ApiResponse<{ success: boolean; transactionId: string }>>('/wallet/process-payment', { method: 'POST', body: JSON.stringify(paymentData) }),
+      this.request<ApiResponse<{ success: boolean; transactionId: string }>>(
+        '/wallet/process-payment', { method: 'POST', body: JSON.stringify(paymentData) }
+      ),
+
+    /** Legacy / test-mode only — redirects to initializePayment if Paystack is configured */
     addFunds: (fundsData: AddFundsRequest) =>
       this.request<ApiResponse<WalletBalance>>('/wallet/add-funds', { method: 'POST', body: JSON.stringify(fundsData) }),
+
+    // ── Paystack ──
+
+    /** Step 1: Get Paystack checkout URL to redirect user for payment */
+    initializePayment: (amount: number) =>
+      this.request<ApiResponse<{ authorizationUrl: string; accessCode: string; reference: string; amount: number }>>(
+        '/wallet/initialize-payment',
+        { method: 'POST', body: JSON.stringify({ amount }) }
+      ),
+
+    /** Step 2: Called after Paystack redirects back — verify & credit wallet */
+    verifyPayment: (reference: string) =>
+      this.request<ApiResponse<{ balance: number; currency: string; amountAdded: number }>>(
+        '/wallet/verify-payment',
+        { method: 'POST', body: JSON.stringify({ reference }) }
+      ),
+
+    /** Withdraw funds to a Nigerian bank account via Paystack Transfer */
+    withdraw: (data: { amount: number; accountNumber: string; bankCode: string; accountName: string }) =>
+      this.request<ApiResponse<{ reference: string; amount: number; newBalance: number; transferStatus: string }>>(
+        '/wallet/withdraw',
+        { method: 'POST', body: JSON.stringify(data) }
+      ),
+
+    /** List Nigerian banks (for withdrawal form selector) */
+    getBanks: () =>
+      this.request<ApiResponse<Array<{ id: number; name: string; code: string; longcode: string }>>>('/wallet/banks'),
+
+    /** Verify a bank account number, returns accountName for confirmation */
+    resolveAccount: (accountNumber: string, bankCode: string) =>
+      this.request<ApiResponse<{ accountName: string; accountNumber: string; bankId: number }>>(
+        '/wallet/resolve-account',
+        { method: 'POST', body: JSON.stringify({ accountNumber, bankCode }) }
+      ),
   };
 
-  // Notifications methods
+  // ── Notifications ─────────────────────────────────────────────────────────
   notifications = {
     get: () => this.request<ApiResponse<Notification[]>>('/notifications'),
     markAsRead: (notificationId: string) =>
@@ -264,12 +267,12 @@ class ApiClient {
       this.request<ApiResponse<{ message: string }>>(`/notifications/${notificationId}`, { method: 'DELETE' }),
   };
 
-  // Messages methods
+  // ── Messages ──────────────────────────────────────────────────────────────
   messages = {
     getConversations: () => this.request<ApiResponse<Conversation[]>>('/messages/conversations'),
     getMessages: (conversationId: string) => this.request<ApiResponse<Message[]>>(`/messages/conversations/${conversationId}`),
     getMessagesWithUser: (userId: string) => this.request<ApiResponse<Message[]>>(`/messages/users/${userId}`),
-    searchConversations: (search: string) => this.request<ApiResponse<Conversation[]>>(`/messages/search?search=${search}`),
+    searchConversations: (search: string) => this.request<ApiResponse<Conversation[]>>(`/messages/search?search=${encodeURIComponent(search)}`),
     getUnreadCount: () => this.request<ApiResponse<{ count: number }>>('/messages/unread'),
     markConversationAsRead: (conversationId: string) =>
       this.request<ApiResponse<{ message: string }>>(`/messages/conversations/${conversationId}/read`, { method: 'PUT' }),
@@ -279,24 +282,20 @@ class ApiClient {
       this.request<ApiResponse<Message>>('/messages', { method: 'POST', body: JSON.stringify(messageData) }),
   };
 
-  // Availability methods
+  // ── Availability ──────────────────────────────────────────────────────────
   availability = {
     get: (params: { providerId: string; date?: string }) => {
-      const queryParams = new URLSearchParams();
-      queryParams.append('providerId', params.providerId);
-      if (params.date) queryParams.append('date', params.date);
-
-      const queryString = queryParams.toString();
-      return this.request<ApiResponse<Availability>>(`/availability?${queryString}`);
+      const qp = new URLSearchParams();
+      qp.append('providerId', params.providerId);
+      if (params.date) qp.append('date', params.date);
+      return this.request<ApiResponse<Availability>>(`/availability?${qp.toString()}`);
     },
     getRange: (params: { providerId: string; startDate?: string; endDate?: string }) => {
-      const queryParams = new URLSearchParams();
-      queryParams.append('providerId', params.providerId);
-      if (params.startDate) queryParams.append('startDate', params.startDate);
-      if (params.endDate) queryParams.append('endDate', params.endDate);
-
-      const queryString = queryParams.toString();
-      return this.request<ApiResponse<Availability>>(`/availability/range?${queryString}`);
+      const qp = new URLSearchParams();
+      qp.append('providerId', params.providerId);
+      if (params.startDate) qp.append('startDate', params.startDate);
+      if (params.endDate) qp.append('endDate', params.endDate);
+      return this.request<ApiResponse<Availability>>(`/availability/range?${qp.toString()}`);
     },
     update: (availabilityData: UpdateAvailabilityRequest) =>
       this.request<ApiResponse<Availability>>('/availability', { method: 'PUT', body: JSON.stringify(availabilityData) }),
@@ -306,7 +305,7 @@ class ApiClient {
       this.request<ApiResponse<Availability>>('/availability/unbook-slot', { method: 'PUT', body: JSON.stringify(slotData) }),
   };
 
-  // Reviews methods
+  // ── Reviews ───────────────────────────────────────────────────────────────
   reviews = {
     create: (reviewData: CreateReviewRequest) =>
       this.request<ApiResponse<Review>>('/reviews', { method: 'POST', body: JSON.stringify(reviewData) }),
@@ -316,7 +315,7 @@ class ApiClient {
     getById: (id: string) => this.request<ApiResponse<Review>>(`/reviews/${id}`),
   };
 
-  // Verification methods
+  // ── Verification ──────────────────────────────────────────────────────────
   verification = {
     submit: (verificationData: Partial<VerificationRequest>) =>
       this.request<ApiResponse<VerificationRequest>>('/verification', { method: 'POST', body: JSON.stringify(verificationData) }),
@@ -331,103 +330,63 @@ class ApiClient {
     approve: (id: string) =>
       this.request<ApiResponse<VerificationRequest>>(`/verification/${id}/approve`, { method: 'PUT' }),
     reject: (id: string, reason: string) =>
-      this.request<ApiResponse<VerificationRequest>>(`/verification/${id}/reject`, {
-        method: 'PUT',
-        body: JSON.stringify({ reason })
-      }),
+      this.request<ApiResponse<VerificationRequest>>(`/verification/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
   };
 
-  // Receipt methods
+  // ── Receipts ──────────────────────────────────────────────────────────────
   receipts = {
     get: (bookingId: string) => this.request<ApiResponse<Receipt>>(`/receipts/${bookingId}`),
     getDetails: (bookingId: string) => this.request<ApiResponse<Receipt>>(`/receipts/${bookingId}/details`),
-    // Special method for PDF that doesn't parse JSON response but includes auth refresh logic
     getPdf: async (bookingId: string) => {
       let response = await fetch(`${this.baseUrl}/receipts/${bookingId}/pdf`, {
         method: 'GET',
         credentials: 'include',
       });
 
-      // Handle authentication errors and try to refresh token automatically
       if (response.status === 401) {
-        // Refresh token is automatically sent via httpOnly cookies
         const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
           method: 'POST',
-          credentials: 'include', // Include cookies for refresh token
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
 
         if (refreshResponse.ok) {
-          // Add a small delay to ensure cookies are properly updated
           await new Promise(resolve => setTimeout(resolve, 100));
-          // After successful refresh, the cookies should be updated
-          // Retry the original request
           response = await fetch(`${this.baseUrl}/receipts/${bookingId}/pdf`, {
             method: 'GET',
             credentials: 'include',
           });
-
           if (!response.ok) {
-            const retryErrorText = await response.clone().text();
-            let retryErrorMessage = `Retry failed with status: ${response.status}`;
-            try {
-              const retryErrorJson = JSON.parse(retryErrorText);
-              retryErrorMessage = retryErrorJson.message || retryErrorJson.error || retryErrorMessage;
-            } catch {
-              // If not JSON, use the text as is
-              retryErrorMessage = retryErrorText;
-            }
-            throw new Error(retryErrorMessage);
+            const errText = await response.clone().text();
+            let msg = `Retry failed: ${response.status}`;
+            try { msg = JSON.parse(errText).message || JSON.parse(errText).error || msg; } catch { msg = errText || msg; }
+            throw new Error(msg);
           }
         } else {
-          // Refresh also failed, clear any stored data and throw error
-          const refreshErrorText = await refreshResponse.clone().text();
-          let refreshErrorMessage = 'Session expired. Please log in again.';
-          try {
-            const refreshErrorJson = JSON.parse(refreshErrorText);
-            refreshErrorMessage = refreshErrorJson.message || refreshErrorJson.error || refreshErrorMessage;
-          } catch {
-            // If not JSON, use the text as is
-            refreshErrorMessage = refreshErrorText;
-          }
-          throw new Error(refreshErrorMessage);
+          const errText = await refreshResponse.clone().text();
+          let msg = 'Session expired. Please log in again.';
+          try { msg = JSON.parse(errText).message || JSON.parse(errText).error || msg; } catch { msg = errText || msg; }
+          throw new Error(msg);
         }
       }
 
       if (!response.ok) {
-        // For non-JSON responses, try to get error from text or use status code
-        let errorMessage = `HTTP error! status: ${response.status}`;
+        let msg = `HTTP error! status: ${response.status}`;
         try {
-          // Clone the response to read it multiple times
-          const errorResponse = response.clone();
-          const errorText = await errorResponse.text();
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.message || errorJson.error || errorMessage;
-          } catch {
-            // If not JSON, use the text as is
-            errorMessage = errorText || errorMessage;
-          }
-        } catch (e) {
-          // If there's an issue reading the error response, use status code
-          errorMessage = `HTTP error! status: ${response.status}`;
-        }
-
-        throw new Error(errorMessage);
+          const txt = await response.clone().text();
+          msg = JSON.parse(txt).message || JSON.parse(txt).error || txt || msg;
+        } catch { /* use default msg */ }
+        throw new Error(msg);
       }
 
-      return await response.text(); // Return as text instead of parsing JSON
+      return await response.text();
     },
   };
 
-  // Categories methods
+  // ── Categories ────────────────────────────────────────────────────────────
   categories = {
     get: (params?: { isActive?: boolean }) => {
-      const endpoint = params?.isActive !== undefined
-        ? `/categories?isActive=${params.isActive}`
-        : '/categories';
+      const endpoint = params?.isActive !== undefined ? `/categories?isActive=${params.isActive}` : '/categories';
       return this.request<ApiResponse<Category[]>>(endpoint);
     },
     getById: (id: string) => this.request<ApiResponse<Category>>(`/categories/${id}`),
@@ -439,113 +398,70 @@ class ApiClient {
       this.request<ApiResponse<{ message: string }>>(`/categories/${id}`, { method: 'DELETE' }),
   };
 
-  // Images methods
+  // ── Images ────────────────────────────────────────────────────────────────
   images = {
     addServiceImages: (serviceId: string, imageUrls: string[]) =>
-      this.request<ApiResponse<Service>>(`/images/services/${serviceId}`, {
-        method: 'POST',
-        body: JSON.stringify({ imageUrls })
-      }),
+      this.request<ApiResponse<Service>>(`/images/services/${serviceId}`, { method: 'POST', body: JSON.stringify({ imageUrls }) }),
     removeServiceImage: (serviceId: string, imageUrl: string) =>
-      this.request<ApiResponse<Service>>(`/images/services/${serviceId}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ imageUrl })
-      }),
+      this.request<ApiResponse<Service>>(`/images/services/${serviceId}`, { method: 'DELETE', body: JSON.stringify({ imageUrl }) }),
   };
 
-  // Upload methods
+  // ── Upload ────────────────────────────────────────────────────────────────
   upload = {
     profileImage: async (file: File) => {
       const formData = new FormData();
       formData.append('image', file);
-
       const response = await fetch(`${this.baseUrl}/upload/profile-image`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
-
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Upload failed' }));
         throw new Error(error.error || 'Failed to upload image');
       }
-
       return await response.json();
     },
 
     portfolio: async (files: File[]) => {
       const formData = new FormData();
-      files.forEach(file => {
-        formData.append('images', file);
-      });
-
+      files.forEach(file => formData.append('images', file));
       const response = await fetch(`${this.baseUrl}/upload/portfolio`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
-
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Upload failed' }));
         throw new Error(error.error || 'Failed to upload portfolio images');
       }
-
       return await response.json();
     },
 
     verification: async (files: File[]) => {
       const formData = new FormData();
-      files.forEach(file => {
-        formData.append('documents', file);
-      });
-
+      files.forEach(file => formData.append('documents', file));
       const response = await fetch(`${this.baseUrl}/upload/verification`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+        method: 'POST', credentials: 'include', body: formData,
       });
-
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Upload failed' }));
         throw new Error(error.error || 'Failed to upload verification documents');
       }
-
       return await response.json();
     },
 
     deletePortfolioImage: (publicId: string) =>
-      this.request<ApiResponse<{ message: string }>>(`/upload/portfolio/${publicId}`, {
-        method: 'DELETE'
-      }),
+      this.request<ApiResponse<{ message: string }>>(`/upload/portfolio/${publicId}`, { method: 'DELETE' }),
   };
 
-  // Location/Geolocation methods
+  // ── Location ──────────────────────────────────────────────────────────────
   location = {
-    reverseGeocode: async (latitude: number, longitude: number) => {
-      return this.request<any>('/location/reverse-geocode', {
-        method: 'POST',
-        body: JSON.stringify({ latitude, longitude })
-      });
-    },
-
-    calculateDistance: async (lat1: number, lon1: number, lat2: number, lon2: number) => {
-      return this.request<any>('/location/calculate-distance', {
-        method: 'POST',
-        body: JSON.stringify({ lat1, lon1, lat2, lon2 })
-      });
-    }
+    reverseGeocode: (latitude: number, longitude: number) =>
+      this.request<ApiResponse<unknown>>('/location/reverse-geocode', {
+        method: 'POST', body: JSON.stringify({ latitude, longitude }),
+      }),
+    calculateDistance: (lat1: number, lon1: number, lat2: number, lon2: number) =>
+      this.request<ApiResponse<unknown>>('/location/calculate-distance', {
+        method: 'POST', body: JSON.stringify({ lat1, lon1, lat2, lon2 }),
+      }),
   };
 }
 
 export const api = new ApiClient();
-
-// Add a global error handler for unhandled API errors
-const originalConsoleError = console.error;
-console.error = function (...args) {
-  // Log only if not an API error we're handling elsewhere
-  if (args[0] && typeof args[0] === 'string' && args[0].includes('API request error')) {
-    // This is already handled in the API layer, so don't double log
-    return;
-  }
-  originalConsoleError.apply(console, args);
-};

@@ -84,7 +84,9 @@ const RoleProtectedRoute = ({ children, allowedRoles }: { children: React.ReactN
   }
 
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={`/${user.role}`} replace />;
+    // Redirect to their dashboard; admin falls back to customer view
+    const redirectPath = user.role === 'admin' ? '/customer' : `/${user.role}`;
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <>{children}</>;
@@ -132,6 +134,7 @@ const AppRoutes = () => {
 
         {/* Wallet Routes */}
         <Route path="/wallet/add-funds" element={<ProtectedRoute><AddFunds /></ProtectedRoute>} />
+        <Route path="/wallet/verify" element={<ProtectedRoute><AddFunds /></ProtectedRoute>} />
         <Route path="/wallet/withdraw" element={<ProtectedRoute><Withdraw /></ProtectedRoute>} />
         <Route path="/wallet/cards" element={<ProtectedRoute><ManageCards /></ProtectedRoute>} />
         <Route path="/wallet/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />

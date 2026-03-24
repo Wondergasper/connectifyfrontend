@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { X, Calendar, Clock, CheckCircle, CreditCard, AlertCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { Service } from "@/lib/apiTypes";
 import { useCreateBooking } from "@/hooks/useBookings";
 import { useWalletBalance } from "@/hooks/useWallet";
 import { useService } from "@/hooks/useServices";
@@ -18,31 +19,33 @@ const BookingFlow = () => {
   const [searchParams] = useSearchParams();
   const serviceId = searchParams.get('serviceId') || '';
 
-  // Fetch service data using the service ID from query params
-  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId);
+  // Fetch service data — cast explicitly to Service to avoid ApiResponse union TS errors
+  const { data: serviceRaw, isLoading: serviceLoading } = useService(serviceId);
+  const serviceData = serviceRaw as Service | undefined;
+  // provider is typed as string | User in the schema — cast to any for JSX access
+  const provider = (serviceData?.provider as any);
 
   // Fetch wallet balance
   const { data: walletData } = useWalletBalance();
-  const walletBalance = walletData?.data?.balance || 0;
+  const walletBalance = (walletData as any)?.balance ?? (walletData as any)?.data?.balance ?? 0;
 
   // Fetch availability based on the provider and selected date
   const { data: availabilityData, isLoading: availabilityLoading } = useQuery({
-    queryKey: ['availability', { providerId: serviceData?.provider?._id, date: selectedDate }],
+    queryKey: ['availability', { providerId: provider?._id, date: selectedDate }],
     queryFn: () => api.availability.get({
-      providerId: serviceData?.provider?._id || '',
+      providerId: provider?._id || '',
       date: selectedDate
     }),
-    enabled: !!serviceData?.provider?._id && !!selectedDate
+    enabled: !!provider?._id && !!selectedDate
   });
 
-  // Use availability data if available, otherwise use static times
-  const times = availabilityData?.data?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
+  // Use availability slots if available, otherwise fall back to hourly time options
+  const times: string[] = availabilityData?.data?.slots?.map((slot: { startTime: string }) => slot.startTime) || [
     "09:00", "10:00", "11:00", "12:00",
     "13:00", "14:00", "15:00", "16:00",
     "17:00", "18:00"
   ];
 
-  // Create booking mutation
   const { mutate: createBooking, isPending } = useCreateBooking();
 
   const handleConfirm = () => {
@@ -51,7 +54,6 @@ const BookingFlow = () => {
       return;
     }
 
-    // Prepare booking data
     const bookingData = {
       service: serviceId,
       date: selectedDate,
@@ -59,21 +61,19 @@ const BookingFlow = () => {
       duration: serviceData?.duration,
       totalAmount: serviceData?.price || 0,
       notes: notes || "",
-      address: serviceData?.location || {}
+      address: (serviceData as any)?.location || {}
     };
 
     createBooking(bookingData, {
       onSuccess: (response) => {
         toast.success("Booking created successfully!");
-        // Navigate to booking detail page to see the new booking
         if (response.booking?._id) {
           navigate(`/booking/${response.booking._id}`, { state: { role: "customer" } });
         } else {
-          navigate("/bookings"); // Fallback to bookings page
+          navigate("/bookings");
         }
       },
       onError: (error: Error) => {
-        console.error("Booking creation failed:", error);
         toast.error(error.message || "Failed to create booking. Please try again.");
       }
     });
@@ -92,9 +92,7 @@ const BookingFlow = () => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="text-xl font-bold text-foreground">Book Service</h2>
-            <p className="text-sm text-muted-foreground">
-              Step {step} of 3
-            </p>
+            <p className="text-sm text-muted-foreground">Step {step} of 3</p>
           </div>
           <button
             onClick={() => navigate(-1)}
@@ -105,14 +103,13 @@ const BookingFlow = () => {
           </button>
         </div>
 
-        {/* Progress */}
+        {/* Progress Bar */}
         <div className="px-6 pt-4 pb-2">
           <div className="flex gap-2">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className={`h-1 flex-1 rounded-full transition-smooth ${i <= step ? "bg-primary" : "bg-border"
-                  }`}
+                className={`h-1 flex-1 rounded-full transition-smooth ${i <= step ? "bg-primary" : "bg-border"}`}
               />
             ))}
           </div>
@@ -120,26 +117,29 @@ const BookingFlow = () => {
 
         {/* Content */}
         <div className="px-6 py-6 max-h-[60vh] overflow-y-auto">
+          {/* Step 1 — Date Selection */}
           {step === 1 && (
             <div className="space-y-4 animate-fade-in">
               {serviceLoading ? (
                 <div className="flex items-start gap-4 p-4 bg-gradient-card rounded-2xl border border-border animate-pulse">
                   <div className="w-16 h-16 rounded-xl bg-muted" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                    <div className="h-3 bg-muted rounded w-2/3"></div>
+                    <div className="h-4 bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                    <div className="h-3 bg-muted rounded w-2/3" />
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start gap-4 p-4 bg-gradient-card rounded-2xl border border-border">
-                  <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center text-3xl">
-                    {serviceData?.provider?.name?.charAt(0) || 'S'}
+                  <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center text-3xl text-white font-bold">
+                    {provider?.name?.charAt(0) || 'S'}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground">{serviceData?.provider?.name || 'Service Provider'}</h3>
+                    <h3 className="font-semibold text-foreground">{provider?.name || 'Service Provider'}</h3>
                     <p className="text-sm text-muted-foreground">{serviceData?.name || serviceData?.category || 'Service'}</p>
-                    <p className="text-sm font-semibold text-primary mt-1">₦{(serviceData?.price || 0).toLocaleString()}/{serviceData?.priceType === 'hourly' ? 'hr' : 'service'}</p>
+                    <p className="text-sm font-semibold text-primary mt-1">
+                      ₦{(serviceData?.price || 0).toLocaleString()}/{serviceData?.priceType === 'hourly' ? 'hr' : 'service'}
+                    </p>
                   </div>
                 </div>
               )}
@@ -160,13 +160,12 @@ const BookingFlow = () => {
               </div>
 
               <div className="p-4 bg-muted/50 rounded-xl">
-                <p className="text-xs text-muted-foreground text-center">
-                  📅 Book up to 2 weeks in advance
-                </p>
+                <p className="text-xs text-muted-foreground text-center">📅 Book up to 2 weeks in advance</p>
               </div>
             </div>
           )}
 
+          {/* Step 2 — Time Selection */}
           {step === 2 && (
             <div className="space-y-4 animate-fade-in">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -176,9 +175,9 @@ const BookingFlow = () => {
 
               {availabilityLoading ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {times.slice(0, 6).map((_, idx) => (
+                  {Array.from({ length: 6 }).map((_, idx) => (
                     <div key={idx} className="py-3 px-2 rounded-xl border border-border bg-card animate-pulse">
-                      <div className="h-4 bg-muted rounded w-full"></div>
+                      <div className="h-4 bg-muted rounded w-full" />
                     </div>
                   ))}
                 </div>
@@ -188,10 +187,11 @@ const BookingFlow = () => {
                     <button
                       key={time || idx}
                       onClick={() => setSelectedTime(time)}
-                      className={`py-3 px-2 rounded-xl border-2 transition-smooth text-sm font-medium ${selectedTime === time
-                        ? "border-primary bg-primary/5 text-primary"
-                        : "border-border bg-card text-foreground hover:border-muted-foreground/30"
-                        }`}
+                      className={`py-3 px-2 rounded-xl border-2 transition-smooth text-sm font-medium ${
+                        selectedTime === time
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border bg-card text-foreground hover:border-muted-foreground/30"
+                      }`}
                       disabled={isPending}
                     >
                       {time}
@@ -202,12 +202,12 @@ const BookingFlow = () => {
             </div>
           )}
 
+          {/* Step 3 — Confirm & Pay */}
           {step === 3 && (
             <div className="space-y-4 animate-fade-in">
-              {/* Booking Summary */}
+              {/* Summary */}
               <div className="p-4 bg-gradient-card rounded-2xl border border-border space-y-3">
                 <h3 className="font-semibold text-foreground">Booking Summary</h3>
-
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Service</span>
@@ -215,7 +215,7 @@ const BookingFlow = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Provider</span>
-                    <span className="font-medium text-foreground">{serviceData?.provider?.name || 'Service Provider'}</span>
+                    <span className="font-medium text-foreground">{provider?.name || 'Service Provider'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Date</span>
@@ -225,7 +225,6 @@ const BookingFlow = () => {
                     <span className="text-muted-foreground">Time</span>
                     <span className="font-medium text-foreground">{selectedTime || "Not selected"}</span>
                   </div>
-
                   <div className="pt-3 border-t border-border">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-foreground">Total</span>
@@ -235,7 +234,7 @@ const BookingFlow = () => {
                 </div>
               </div>
 
-              {/* Booking Notes */}
+              {/* Notes */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Additional Notes</label>
                 <textarea
@@ -256,9 +255,7 @@ const BookingFlow = () => {
                 <button className="w-full p-4 rounded-xl border-2 border-primary bg-primary/5 text-left">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center text-white font-bold">
-                        W
-                      </div>
+                      <div className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center text-white font-bold">W</div>
                       <div>
                         <div className="font-medium text-foreground text-sm">Connectify Wallet</div>
                         <div className="text-xs text-muted-foreground">Balance: ₦{walletBalance.toLocaleString()}</div>
@@ -276,16 +273,14 @@ const BookingFlow = () => {
                   <div>
                     <p className="text-sm font-semibold text-destructive mb-1">Insufficient Wallet Balance</p>
                     <p className="text-xs text-destructive/80">
-                      You need ₦{((serviceData?.price || 0) - walletBalance).toLocaleString()} more. Please add funds to your wallet.
+                      You need ₦{((serviceData?.price || 0) - walletBalance).toLocaleString()} more. Please add funds.
                     </p>
                   </div>
                 </div>
               )}
 
               <div className="p-4 bg-accent/10 rounded-xl">
-                <p className="text-xs text-accent text-center">
-                  🔒 Secure payment. Money held until service is completed.
-                </p>
+                <p className="text-xs text-accent text-center">🔒 Secure payment. Money held until service is completed.</p>
               </div>
             </div>
           )}
@@ -299,17 +294,17 @@ const BookingFlow = () => {
               disabled={step === 1 ? !selectedDate : !selectedTime || isPending}
               className="w-full h-14 gradient-primary border-0 font-semibold disabled:opacity-50"
             >
-              {isPending && step === 2 ? "Processing..." : "Continue"}
+              Continue
             </Button>
           ) : (
             <Button
               onClick={handleConfirm}
-              disabled={isPending}
+              disabled={isPending || walletBalance < (serviceData?.price || 0)}
               className="w-full h-14 gradient-primary border-0 font-semibold"
             >
               {isPending ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                   Confirming...
                 </>
               ) : (
@@ -322,12 +317,7 @@ const BookingFlow = () => {
           )}
 
           {step > 1 && (
-            <Button
-              variant="ghost"
-              onClick={() => setStep(step - 1)}
-              className="w-full"
-              disabled={isPending}
-            >
+            <Button variant="ghost" onClick={() => setStep(step - 1)} className="w-full" disabled={isPending}>
               Back
             </Button>
           )}
@@ -338,4 +328,3 @@ const BookingFlow = () => {
 };
 
 export default BookingFlow;
-
