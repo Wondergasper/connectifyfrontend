@@ -101,9 +101,24 @@ export const initializeWebSocket = (userId: string) => {
     return socketInstance;
   }
 
+  // Get auth token from cookies for Socket.IO authentication
+  const getAuthToken = () => {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'accessToken') {
+        return value;
+      }
+    }
+    return null;
+  };
+
   socketInstance = io(BACKEND_URL, {
     transports: ['websocket', 'polling'],
     withCredentials: true,
+    auth: {
+      token: getAuthToken(),
+    },
   });
 
   socketInstance.on('connect', () => {
@@ -121,6 +136,15 @@ export const initializeWebSocket = (userId: string) => {
 
   socketInstance.on('connect_error', (error) => {
     console.error('WebSocket connection error:', error);
+  });
+
+  // Re-authenticate when token is refreshed
+  socketInstance.on('tokenRefreshed', () => {
+    const newToken = getAuthToken();
+    if (newToken && socketInstance) {
+      socketInstance.io.opts.auth = { token: newToken };
+      console.log('WebSocket re-authenticated with new token');
+    }
   });
 
   return socketInstance;

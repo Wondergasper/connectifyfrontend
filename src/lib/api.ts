@@ -31,6 +31,19 @@ import {
 // In production, VITE_API_URL should be the full backend URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+// Prevent race conditions during token refresh
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+const onTokenRefreshed = () => {
+  refreshSubscribers.forEach(cb => cb(''));
+  refreshSubscribers = [];
+};
+
 class ApiClient {
   private baseUrl: string;
 
@@ -70,25 +83,49 @@ class ApiClient {
 
         // 401 — try token refresh, then retry
         if (response.status === 401) {
-          console.log('Received 401, attempting token refresh...');
-          const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-          });
-
-          if (refreshResponse.ok) {
-            console.log('Token refresh successful, retrying original request...');
-            await new Promise(resolve => setTimeout(resolve, 100));
+          // If already refreshing, wait for it to complete
+          if (isRefreshing) {
+            console.log('Token refresh in progress, waiting...');
+            await new Promise<void>(resolve => {
+              subscribeTokenRefresh(() => {
+                resolve();
+              });
+            });
+            // Retry the original request after refresh completes
             const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
             if (!retryResponse.ok) {
               const retryError = await retryResponse.json().catch(() => ({} as ApiErrorResponse));
               throw new Error(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`);
             }
             return await retryResponse.json();
-          } else {
-            const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
-            throw new Error(refreshError.message || refreshError.error || 'Session expired. Please log in again.');
+          }
+
+          console.log('Received 401, attempting token refresh...');
+          isRefreshing = true;
+
+          try {
+            const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (refreshResponse.ok) {
+              console.log('Token refresh successful, retrying original request...');
+              onTokenRefreshed();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
+              if (!retryResponse.ok) {
+                const retryError = await retryResponse.json().catch(() => ({} as ApiErrorResponse));
+                throw new Error(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`);
+              }
+              return await retryResponse.json();
+            } else {
+              const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
+              throw new Error(refreshError.message || refreshError.error || 'Session expired. Please log in again.');
+            }
+          } finally {
+            isRefreshing = false;
           }
         }
 

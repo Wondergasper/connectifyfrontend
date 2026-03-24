@@ -3,7 +3,7 @@ import { useProfileNoNavigate } from '../hooks/useAuth';
 import { ApiResponse, UserProfileResponse } from '../lib/apiTypes';
 
 interface AuthContextType {
-  token: string | null;
+  token: string | null; // Kept for compatibility, but we use httpOnly cookies
   userId: string | null;
   user: any | null;
   isAuthenticated: boolean;
@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      token: null,
+      token: null, // Tokens are stored in httpOnly cookies, not accessible from JS
       userId,
       user,
       isAuthenticated,
