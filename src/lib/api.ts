@@ -33,14 +33,23 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Prevent race conditions during token refresh
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: Array<{
+  resolve: () => void;
+  reject: (error: Error) => void;
+}> = [];
 
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb);
-};
+const subscribeTokenRefresh = () =>
+  new Promise<void>((resolve, reject) => {
+    refreshSubscribers.push({ resolve, reject });
+  });
 
 const onTokenRefreshed = () => {
-  refreshSubscribers.forEach(cb => cb(''));
+  refreshSubscribers.forEach(({ resolve }) => resolve());
+  refreshSubscribers = [];
+};
+
+const onTokenRefreshFailed = (error: Error) => {
+  refreshSubscribers.forEach(({ reject }) => reject(error));
   refreshSubscribers = [];
 };
 
@@ -86,11 +95,7 @@ class ApiClient {
           // If already refreshing, wait for it to complete
           if (isRefreshing) {
             console.log('Token refresh in progress, waiting...');
-            await new Promise<void>(resolve => {
-              subscribeTokenRefresh(() => {
-                resolve();
-              });
-            });
+            await subscribeTokenRefresh();
             // Retry the original request after refresh completes
             const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
             if (!retryResponse.ok) {
@@ -124,6 +129,12 @@ class ApiClient {
               const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
               throw new Error(refreshError.message || refreshError.error || 'Session expired. Please log in again.');
             }
+          } catch (error) {
+            const refreshFailure = error instanceof Error
+              ? error
+              : new Error('Session expired. Please log in again.');
+            onTokenRefreshFailed(refreshFailure);
+            throw refreshFailure;
           } finally {
             isRefreshing = false;
           }

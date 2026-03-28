@@ -24,13 +24,7 @@ const RoleSelection = () => {
         },
         onError: (error: unknown) => {
           console.error("Failed to update role:", error);
-          // Still allow navigation even if role update fails
-          if (selectedRole === "customer") {
-            navigate("/customer-onboarding");
-          } else if (selectedRole === "provider") {
-            navigate("/provider-onboarding");
-          }
-          toast.error("Failed to save your role selection, but you can continue");
+          toast.error("We couldn't save your role selection. Please try again.");
         }
       });
     }
