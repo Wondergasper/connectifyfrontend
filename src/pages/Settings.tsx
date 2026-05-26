@@ -2,6 +2,7 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, ChevronRight, User, Bell, Shield, Globe, HelpCircle, LogOut, Moon, LayoutDashboard, BriefcaseBusiness, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useLogout } from "@/hooks/useAuth";
 
 interface SettingsProps {
   role?: "customer" | "provider" | "admin";
@@ -11,6 +12,7 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const logoutMutation = useLogout();
 
   const menuItems = [
     {
@@ -77,7 +79,7 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
     {
       icon: LogOut,
       label: "Logout",
-      action: () => navigate("/auth"),
+      action: () => logoutMutation.mutate(),
       danger: true,
     },
   ];
@@ -198,4 +200,3 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
 };
 
 export default Settings;
-
