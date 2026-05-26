@@ -1,12 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, MessageSquare, Star, Wallet, CheckCheck } from "lucide-react";
-import { useMarkAllNotificationsAsRead, useNotifications } from "@/hooks/useNotifications";
+import { ArrowLeft, Calendar, MessageSquare, Star, Wallet, CheckCheck, ChevronRight } from "lucide-react";
+import { useMarkAllNotificationsAsRead, useMarkNotificationAsRead, useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
+import { Notification } from "@/lib/apiTypes";
 
 const Notifications = () => {
   const navigate = useNavigate();
   const { data: notificationsData, isLoading } = useNotifications();
   const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllNotificationsAsRead();
+  const { mutateAsync: markAsRead } = useMarkNotificationAsRead();
 
   const notifications = notificationsData?.data || [];
 
@@ -20,6 +22,39 @@ const Notifications = () => {
       'system': CheckCheck
     };
     return iconMap[type] || Calendar; // Default to Calendar if type not found
+  };
+
+  const getNotificationTarget = (notification: Notification) => {
+    const data = notification.data || {};
+    const bookingId = typeof data.bookingId === 'string' ? data.bookingId : '';
+    const serviceId = typeof data.serviceId === 'string' ? data.serviceId : '';
+    const conversationId = typeof data.conversationId === 'string' ? data.conversationId : '';
+
+    if (notification.type === 'message') {
+      return conversationId ? `/messages?conversationId=${conversationId}` : '/messages';
+    }
+    if (notification.type === 'review') {
+      return bookingId ? `/review/${bookingId}` : '/bookings';
+    }
+    if (notification.type === 'payment') {
+      return bookingId ? `/receipt/${bookingId}` : '/wallet';
+    }
+    if (notification.type === 'booking') {
+      return bookingId ? `/booking/${bookingId}` : serviceId ? `/service/${serviceId}` : '/bookings';
+    }
+    return '/notifications';
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    const notificationId = notification._id || notification.id;
+    if (notificationId && !notification.read) {
+      await markAsRead(notificationId).catch(() => undefined);
+    }
+
+    const target = getNotificationTarget(notification);
+    if (target !== '/notifications') {
+      navigate(target);
+    }
   };
 
   return (
@@ -69,6 +104,7 @@ const Notifications = () => {
             return (
               <button
                 key={notification._id || notification.id}
+                onClick={() => handleNotificationClick(notification)}
                 className={`w-full p-4 rounded-2xl border transition-smooth text-left ${
                   notification.read
                     ? "bg-card border-border"
@@ -85,9 +121,12 @@ const Notifications = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <h3 className="font-semibold text-foreground">{notification.title}</h3>
-                      {!notification.read && (
-                        <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-1.5" />
-                      )}
+                      <div className="flex items-center gap-2">
+                        {!notification.read && (
+                          <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />
+                        )}
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                       {notification.message || notification.content}

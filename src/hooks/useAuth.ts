@@ -1,5 +1,6 @@
 // src/hooks/useAuth.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -42,67 +43,68 @@ export const useRegister = () => {
 
 // A version of useProfile that does not require navigate (for use in AuthContext)
 export const useProfileNoNavigate = () => {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['profile'],
     queryFn: () => api.auth.getProfile(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: false, // Don't retry on 401 errors during initial load
-    throwOnError: false, // Don't throw on error to allow unauthenticated state
-    refetchOnWindowFocus: false, // Don't refetch automatically when window is focused
-    refetchOnReconnect: false, // Don't refetch on reconnection
-    // Handle errors appropriately without navigation
-    onError: (error: Error) => {
-      console.error('Profile fetch error:', error);
-      // Check if it's an authentication error that requires logout
-      if (
-        error.message.includes('Session expired') ||
-        error.message.includes('401') ||
-        error.message.includes('No refresh token provided') ||
-        error.message.includes('Invalid refresh token')
-      ) {
-        // Don't show error toast on initial load - user might just not be logged in
-        // Navigation will be handled by parent components
-        disconnectWebSocket();
-      } else {
-        toast.error('Failed to load profile. Please try again later.');
-      }
-    }
+    retry: false,
+    throwOnError: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+
+  // Handle errors without navigation (useEffect replaces deprecated onError option)
+  useEffect(() => {
+    if (!query.isError || !query.error) return;
+    const error = query.error as Error;
+    if (
+      error.message.includes('Session expired') ||
+      error.message.includes('401') ||
+      error.message.includes('No refresh token provided') ||
+      error.message.includes('Invalid refresh token')
+    ) {
+      disconnectWebSocket();
+    } else {
+      toast.error('Failed to load profile. Please try again later.');
+    }
+  }, [query.isError, query.error]);
+
+  return query;
 };
 
 // A version of useProfile that can navigate (for use in router contexts)
 export const useProfile = () => {
   const navigate = useNavigate();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['profile'],
     queryFn: () => api.auth.getProfile(),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: false, // Don't retry on 401 errors during initial load
-    throwOnError: false, // Don't throw on error to allow unauthenticated state
-    refetchOnWindowFocus: false, // Don't refetch automatically when window is focused
-    refetchOnReconnect: false, // Don't refetch on reconnection
-    // Handle errors appropriately with navigation
-    onError: (error: Error) => {
-      console.error('Profile fetch error:', error);
-      // Check if it's an authentication error that requires logout
-      if (
-        error.message.includes('Session expired') ||
-        error.message.includes('401') ||
-        error.message.includes('No refresh token provided') ||
-        error.message.includes('Invalid refresh token')
-      ) {
-        // Redirect to auth when the cookie-backed session is no longer valid
-        disconnectWebSocket();
-        navigate('/auth', { replace: true });
-        // Only show toast if it's not the initial load (to avoid spamming on first visit)
-        // But for now, we'll show it to be explicit
-        toast.error('Session expired. Please log in again.');
-      } else {
-        toast.error('Failed to load profile. Please try again later.');
-      }
-    }
+    retry: false,
+    throwOnError: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+
+  // Handle errors with navigation (useEffect replaces deprecated onError option)
+  useEffect(() => {
+    if (!query.isError || !query.error) return;
+    const error = query.error as Error;
+    if (
+      error.message.includes('Session expired') ||
+      error.message.includes('401') ||
+      error.message.includes('No refresh token provided') ||
+      error.message.includes('Invalid refresh token')
+    ) {
+      disconnectWebSocket();
+      navigate('/auth', { replace: true });
+      toast.error('Session expired. Please log in again.');
+    } else {
+      toast.error('Failed to load profile. Please try again later.');
+    }
+  }, [query.isError, query.error]);
+
+  return query;
 };
 
 export const useUpdateProfile = () => {

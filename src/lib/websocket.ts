@@ -1,5 +1,6 @@
 import io from 'socket.io-client';
 import { useEffect, useState } from 'react';
+import { isDesignReviewMode } from './designReview';
 
 // Define types for the events and data structures
 export interface MessageData {
@@ -89,6 +90,16 @@ export interface ServerToClientEvents {
 // The functionality remains the same, types will be enforced through IDE autocomplete
 let socketInstance: any | null = null;
 
+const createDesignReviewSocket = () => ({
+  id: 'design-review-socket',
+  connected: true,
+  emit: () => undefined,
+  on: () => undefined,
+  off: () => undefined,
+  disconnect: () => undefined,
+  io: { opts: { auth: {} } },
+});
+
 // For WebSocket, we need the actual backend URL, not the proxy
 // In production, use VITE_WS_URL from environment
 // In development, fallback to localhost
@@ -98,6 +109,11 @@ const BACKEND_URL = import.meta.env.VITE_WS_URL ||
 
 export const initializeWebSocket = (userId: string) => {
   if (socketInstance) {
+    return socketInstance;
+  }
+
+  if (isDesignReviewMode) {
+    socketInstance = createDesignReviewSocket();
     return socketInstance;
   }
 

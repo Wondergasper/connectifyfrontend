@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Share2, CheckCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useBooking } from "@/hooks/useBookings";
+import { api } from "@/lib/api";
 
 const Receipt = () => {
     const navigate = useNavigate();
@@ -13,12 +14,22 @@ const Receipt = () => {
 
     // Function to download receipt as PDF
     const handleDownload = async () => {
+        const receiptWindow = window.open('', '_blank', 'noopener,noreferrer');
         try {
-            // In a real app, this would call the actual PDF endpoint
-            // For now, we'll simulate the download
-            window.open(`/api/receipts/${id}/pdf`, '_blank');
+            if (!id) {
+                throw new Error('Receipt ID is missing.');
+            }
+            const pdfBlob = await api.receipts.getPdf(id);
+            const pdfUrl = URL.createObjectURL(pdfBlob);
+            if (receiptWindow) {
+                receiptWindow.location.href = pdfUrl;
+            } else {
+                window.location.href = pdfUrl;
+            }
+            setTimeout(() => URL.revokeObjectURL(pdfUrl), 30000);
             toast.success("Receipt downloaded successfully!");
         } catch (error) {
+            receiptWindow?.close();
             console.error("Download error:", error);
             toast.error("Failed to download receipt. Please try again.");
         }

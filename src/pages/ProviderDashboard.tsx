@@ -63,22 +63,20 @@ const ProviderDashboard = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
-      <div className="gradient-primary px-6 pt-12 pb-6 rounded-b-3xl relative overflow-hidden">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white drop-shadow-md">
-              Welcome back, {profileData?.data?.user?.name?.split(' ')[0] || 'Provider'}!
+      <div className="gradient-primary px-6 pt-12 pb-7 rounded-b-[2rem] relative overflow-hidden shadow-strong">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Provider Dashboard</p>
+            <h1 className="mt-2 text-2xl font-bold leading-tight text-white drop-shadow-md">
+              Welcome back, {profileData?.data?.user?.name?.split(' ')[0] || 'Provider'}
             </h1>
-            <p className="text-sm text-white/80 mt-1">Track your business growth</p>
+            <p className="mt-1 max-w-[240px] text-sm leading-5 text-white/85">
+              Manage bookings, availability, and earnings.
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className={`px-3 py-1.5 rounded-full backdrop-blur-sm border ${profileData?.data?.user?.isActive ? 'bg-green-500/20 border-green-500/30 text-green-200' : 'bg-amber-500/20 border-amber-500/30 text-amber-200'
-              }`}>
-              <span className="text-xs font-medium">
-                ● {profileData?.data?.user?.isActive ? 'Online' : 'Offline'}
-              </span>
-            </div>
+          <div className="flex shrink-0 items-center gap-2">
             <button
+              aria-label="Open messages"
               onClick={() => navigate("/messages")}
               className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-medium hover:bg-white/30 transition-smooth relative"
             >
@@ -86,18 +84,33 @@ const ProviderDashboard = () => {
               <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
             </button>
             <button
+              aria-label="Open notifications"
               onClick={() => navigate("/notifications")}
               className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-medium hover:bg-white/30 transition-smooth relative"
             >
               <Bell className="w-5 h-5 text-white" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
             </button>
-            <button
-              onClick={() => navigate("/profile/provider")}
-              className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center shadow-medium hover:bg-white/30 transition-smooth"
+          </div>
+        </div>
+        <div className="mt-6 rounded-2xl border border-white/20 bg-white/15 px-4 py-3 text-white shadow-soft backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-white/70">Availability status</p>
+              <p className="mt-1 text-sm font-semibold">
+                {profileData?.data?.user?.isActive ? "Ready for booking requests" : "Not accepting requests"}
+              </p>
+            </div>
+            <div
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                profileData?.data?.user?.isActive
+                  ? "border-white/25 bg-white/20 text-white"
+                  : "border-amber-200/40 bg-amber-500/20 text-amber-50"
+              }`}
             >
-              <User className="w-5 h-5 text-white" />
-            </button>
+              <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-current align-middle" />
+              {profileData?.data?.user?.isActive ? "Online" : "Offline"}
+            </div>
           </div>
         </div>
       </div>

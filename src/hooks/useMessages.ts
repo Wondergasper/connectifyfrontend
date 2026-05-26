@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Message } from '@/lib/apiTypes';
@@ -54,9 +54,9 @@ export const useCreateConversation = () => {
   });
 };
 
-export const useSendMessage = (userId: string | null) => {
+// userId param removed — socket lifecycle is managed by the page that uses this hook
+export const useSendMessage = () => {
   const queryClient = useQueryClient();
-  useWebSocket(userId);
 
   return useMutation({
     mutationFn: (messageData: { conversationId: string; content: string }) =>
@@ -73,16 +73,11 @@ export const useRealTimeMessages = (userId: string | null) => {
   const { socket } = useWebSocket(userId);
 
   useEffect(() => {
-    if (!socket) {
-      return;
-    }
-
+    if (!socket) return;
     const handleNewMessage = (message: Message) => {
       setMessages((prev) => [...prev, message]);
     };
-
     socket.on('newMessage', handleNewMessage);
-
     return () => {
       socket.off('newMessage', handleNewMessage);
     };
@@ -92,6 +87,3 @@ export const useRealTimeMessages = (userId: string | null) => {
 };
 
 export const useMessageSocket = useWebSocket;
-
-
-

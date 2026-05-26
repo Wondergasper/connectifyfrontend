@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Mail, Lock, User, Phone, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
@@ -10,12 +10,21 @@ import { toast } from "sonner";
 import { z } from 'zod';
 import { loginSchema, registerSchema } from '@/lib/validationSchemas';
 import { LoginRequest, RegisterRequest } from '@/lib/apiTypes';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const userType = searchParams.get('type'); // 'customer' or 'provider'
+  const stateRole = location.state?.role === 'customer' || location.state?.role === 'provider'
+    ? location.state.role
+    : null;
+  const requestedRole = userType === 'customer' || userType === 'provider' ? userType : stateRole;
 
-  const [isLogin, setIsLogin] = useState(true);
+  const from = location.state?.from?.pathname || null;
+  const showLoginFirst = location.state?.showLoginFirst === true;
+
+  const [isLogin, setIsLogin] = useState(() => !userType);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
@@ -27,6 +36,34 @@ const Auth = () => {
   });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { isAuthenticated, user } = useAuth();
+  const isHandlingSubmitRedirect = useRef(false);
+
+  useEffect(() => {
+    if (userType) {
+      setIsLogin(false);
+    }
+  }, [userType]);
+
+  // Bug #6 fix: redirect already-authenticated users away from /auth
+  useEffect(() => {
+    if (isHandlingSubmitRedirect.current) {
+      return;
+    }
+
+    if (showLoginFirst && isLogin) {
+      return;
+    }
+
+    if (isAuthenticated && user) {
+      if (from) {
+        navigate(from, { replace: true });
+      } else {
+        const path = user.role === 'provider' ? '/provider' : '/customer';
+        navigate(path, { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate, from, showLoginFirst, isLogin]);
 
   const validateForm = () => {
     setErrors({});
@@ -108,6 +145,7 @@ const Auth = () => {
 
         console.log('Login successful:', response);
         toast.success('Login successful!');
+        isHandlingSubmitRedirect.current = true;
 
         // Check if user already has a role and redirect appropriately
         // The response structure is: { success: true, data: { user: {...} } }
@@ -133,11 +171,13 @@ const Auth = () => {
         console.log('✅ Cache updated with user data');
 
         // Determine redirect path
-        let redirectPath = '/role'; // Default for users without role
-        if (userRole === 'customer') {
-          redirectPath = '/customer';
-        } else if (userRole === 'provider') {
-          redirectPath = '/provider';
+        let redirectPath = from || '/role'; // Prefer 'from' if it exists, otherwise role selection
+        if (!from) {
+          if (userRole === 'customer') {
+            redirectPath = '/customer';
+          } else if (userRole === 'provider') {
+            redirectPath = '/provider';
+          }
         }
 
         console.log('🔄 Redirecting to:', redirectPath);
@@ -165,11 +205,13 @@ const Auth = () => {
           name: sanitizedName,
           email: sanitizedEmail,
           phone: formattedPhone,
-          password: sanitizedPassword
+          password: sanitizedPassword,
+          role: requestedRole || undefined
         });
 
         console.log('Registration successful:', response);
         toast.success('Registration successful!');
+        isHandlingSubmitRedirect.current = true;
 
         // Give a delay to ensure cookies are fully set
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -187,7 +229,15 @@ const Auth = () => {
         console.log('✅ Cache updated with user data');
         console.log('🔄 Redirecting to role selection...');
 
-        navigate("/role", { replace: true });
+        const onboardingPath = requestedRole === 'provider'
+          ? '/provider-onboarding'
+          : requestedRole === 'customer'
+            ? '/customer-onboarding'
+            : '/role';
+
+        console.log('Redirecting after registration:', onboardingPath);
+
+        navigate(onboardingPath, { replace: true });
       }
     } catch (error: unknown) {
       console.error('Auth error:', error);
@@ -210,8 +260,9 @@ const Auth = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    // Map the 'email' field id to 'emailOrPhone' during login, keep separate during registration
-    const fieldId = (isLogin && id === 'email') ? 'emailOrPhone' : id;
+    // Bug #7 fix: the login field now uses id="emailOrPhone" directly,
+    // no runtime id remapping needed.
+    const fieldId = id;
 
     // Clear the error for this field when user types
     if (errors[fieldId]) {
@@ -308,8 +359,9 @@ const Auth = () => {
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
-                  id="email"
-                  type="text" // Changed to text to allow phone numbers as well for login
+                  id={isLogin ? 'emailOrPhone' : 'email'}
+                  type="text"
+                  autoComplete={isLogin ? 'username' : 'email'}
                   value={isLogin ? formData.emailOrPhone : formData.email}
                   onChange={handleChange}
                   placeholder={isLogin ? "Email or phone number" : "you@example.com"}

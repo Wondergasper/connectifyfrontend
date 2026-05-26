@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, FileCheck, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface VerificationUploadProps {
+    currentDocs?: string[];
     onUploadComplete?: () => void;
 }
 
-export const VerificationUpload = ({ onUploadComplete }: VerificationUploadProps) => {
+export const VerificationUpload = ({ currentDocs = [], onUploadComplete }: VerificationUploadProps) => {
     const [uploading, setUploading] = useState(false);
-    const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+    const [uploadedDocs, setUploadedDocs] = useState<string[]>(currentDocs);
+
+    useEffect(() => {
+        if (currentDocs && currentDocs.length > 0) {
+            setUploadedDocs(currentDocs);
+        }
+    }, [currentDocs]);
     const queryClient = useQueryClient();
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

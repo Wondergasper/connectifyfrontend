@@ -259,6 +259,49 @@ export interface WalletTransaction {
 
 export type Transaction = WalletTransaction;
 
+export interface PaymentCard {
+  _id?: string;
+  id?: string;
+  brand: string;
+  last4: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cardHolderName?: string;
+  provider?: string;
+  isDefault?: boolean;
+  status?: 'active' | 'expired' | 'disabled' | string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePaymentCardRequest {
+  brand: string;
+  last4: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cardHolderName?: string;
+  authorizationCode?: string;
+  provider?: string;
+  isDefault?: boolean;
+}
+
+export interface AuditLog {
+  _id?: string;
+  id?: string;
+  actor?: string | User;
+  actorName?: string;
+  actorRole?: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  target?: string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface AddFundsRequest {
   amount: number;
   paymentMethod?: string;
@@ -269,6 +312,7 @@ export interface AddFundsRequest {
 export interface NotificationDataMap {
   bookingId?: string;
   serviceId?: string;
+  conversationId?: string;
   messageId?: string;
   [key: string]: unknown;
 }

@@ -303,7 +303,10 @@ const EditProfile = () => {
                                 <p className="text-xs text-muted-foreground mb-4">
                                     Upload your ID and business documents to get verified
                                 </p>
-                                <VerificationUpload onUploadComplete={() => refetch()} />
+                                <VerificationUpload
+                                    currentDocs={profileData?.data?.user?.profile?.verification?.documents || []}
+                                    onUploadComplete={() => refetch()}
+                                />
                             </div>
                         </div>
                     </div>

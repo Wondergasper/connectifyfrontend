@@ -69,19 +69,6 @@ const CustomerDashboard = () => {
   // Calculate stats from API data
   const allBookings = bookingsData?.data || [];
   const totalBookings = allBookings.length;
-  const completedBookings = allBookings.filter((booking: { status: string }) =>
-    booking.status === 'completed'
-  ).length;
-
-  // Calculate average rating from completed bookings
-  const completedRatings = allBookings
-    .filter((booking: { status: string }) => booking.status === 'completed')
-    .map((booking: { rating?: { value: number } }) => booking.rating?.value)
-    .filter((rating: number | undefined): rating is number => rating !== undefined);
-
-  const averageRating = completedRatings.length > 0
-    ? (completedRatings.reduce((sum: number, rating: number) => sum + rating, 0) / completedRatings.length).toFixed(1)
-    : '0.0';
 
   // Filter featured providers from the services data
   const featuredProviders = providersData?.data?.slice(0, 3) || [];
@@ -113,12 +100,6 @@ const CustomerDashboard = () => {
               <Bell className="w-5 h-5 text-white" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
             </button>
-            <button
-              onClick={() => navigate("/profile/customer")}
-              className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-medium hover:bg-white/30 transition-smooth"
-            >
-              <User className="w-5 h-5 text-white" />
-            </button>
           </div>
         </div>
 
@@ -139,9 +120,9 @@ const CustomerDashboard = () => {
       {/* Quick Stats */}
       <div className="px-6 -mt-6 mb-6">
         <div className="bg-card rounded-2xl shadow-medium border border-border p-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {bookingsLoading ? (
-              Array.from({ length: 3 }).map((_, index) => (
+              Array.from({ length: 2 }).map((_, index) => (
                 <div
                   key={index}
                   className="text-center animate-pulse"
@@ -155,7 +136,7 @@ const CustomerDashboard = () => {
               <>
                 <button
                   onClick={() => navigate("/bookings")}
-                  className="text-center hover:scale-105 transition-smooth"
+                  className="text-center border-r border-border hover:scale-105 transition-smooth"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
                     <Calendar className="w-5 h-5 text-primary" />
@@ -163,13 +144,6 @@ const CustomerDashboard = () => {
                   <div className="text-xl font-bold text-foreground">{totalBookings}</div>
                   <div className="text-xs text-muted-foreground">Bookings</div>
                 </button>
-                <div className="text-center border-x border-border">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-2">
-                    <Star className="w-5 h-5 text-accent" />
-                  </div>
-                  <div className="text-xl font-bold text-foreground">{averageRating}</div>
-                  <div className="text-xs text-muted-foreground">Rating</div>
-                </div>
                 {balanceLoading ? (
                   <div className="text-center animate-pulse">
                     <div className="w-10 h-10 rounded-xl bg-muted/50 mx-auto mb-2" />

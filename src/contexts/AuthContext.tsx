@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import { useProfileNoNavigate } from '../hooks/useAuth';
 import { ApiResponse, UserProfileResponse } from '../lib/apiTypes';
 
@@ -16,19 +16,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { data, isLoading, isError, isRefetching } = useProfileNoNavigate();
 
   const profileData = data as ApiResponse<UserProfileResponse> | undefined;
-  const userId = profileData?.data?.user?._id || null;
+
   const user = profileData?.data?.user || null;
-
-  const [internalIsAuthenticated, setInternalIsAuthenticated] = useState<boolean>(false);
-
-  // Update authentication status when profile data changes
-  useEffect(() => {
-    const isAuthenticatedStatus = !isLoading && !isError && !!profileData?.data?.user;
-    setInternalIsAuthenticated(isAuthenticatedStatus);
-  }, [profileData, isLoading, isError]);
-
-  // Use the internal state instead of calculating every render
-  const isAuthenticated = internalIsAuthenticated;
+  const userId = user?._id || user?.id || null;
+  const isAuthenticated = !isLoading && !isError && !!user;
+  const effectiveIsLoading = isLoading || isRefetching;
 
   return (
     <AuthContext.Provider value={{
@@ -36,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userId,
       user,
       isAuthenticated,
-      isLoading: isLoading || isRefetching
+      isLoading: effectiveIsLoading
     }}>
       {children}
     </AuthContext.Provider>

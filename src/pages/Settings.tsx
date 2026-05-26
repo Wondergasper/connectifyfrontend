@@ -1,11 +1,10 @@
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, ChevronRight, User, Bell, Shield, Globe, HelpCircle, LogOut, Moon } from "lucide-react";
+import { ArrowLeft, ChevronRight, User, Bell, Shield, Globe, HelpCircle, LogOut, Moon, LayoutDashboard, BriefcaseBusiness, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 interface SettingsProps {
-  role?: "customer" | "provider";
+  role?: "customer" | "provider" | "admin";
 }
 
 const Settings = ({ role = "customer" }: SettingsProps) => {
@@ -38,15 +37,42 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
       icon: Globe,
       label: "Language",
       subtitle: "English",
-      action: () => { },
+      action: () => navigate("/settings/language"),
     },
   ];
+
+  if (role === "customer") {
+    menuItems.push({
+      icon: BriefcaseBusiness,
+      label: "Become a Service Provider",
+      subtitle: "Set up services, pricing, and availability",
+      action: () => navigate("/provider-onboarding"),
+    });
+  }
+
+  if (role === "provider") {
+    menuItems.push({
+      icon: Home,
+      label: "Switch to Customer Mode",
+      subtitle: "Browse and book services",
+      action: () => navigate("/customer"),
+    });
+  }
+
+  if (role === "admin") {
+    menuItems.push({
+      icon: LayoutDashboard,
+      label: "Admin Panel",
+      subtitle: "Platform management & analytics",
+      action: () => navigate("/admin"),
+    });
+  }
 
   const otherItems = [
     {
       icon: HelpCircle,
       label: "Help & Support",
-      action: () => { },
+      action: () => navigate("/support"),
     },
     {
       icon: LogOut,
@@ -133,24 +159,6 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
         </div>
       </div>
 
-      {/* Refer a Friend */}
-      <div className="px-6 pb-6">
-        <div className="gradient-card rounded-2xl p-5 shadow-medium">
-          <div className="flex items-start gap-4">
-            <div className="text-3xl">🎁</div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground mb-1">Refer a Friend</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Invite friends and earn ₦5,000 when they complete their first job
-              </p>
-              <Button className="w-full h-10 gradient-primary border-0 font-semibold shadow-medium text-sm">
-                Share Invite Link
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Other */}
       <div className="px-6 pb-6">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -190,3 +198,4 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
 };
 
 export default Settings;
+

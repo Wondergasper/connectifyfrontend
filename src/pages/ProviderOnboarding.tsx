@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { User, Briefcase, Camera, FileText, Sparkles } from "lucide-react";
-import { useUpdateProfile } from "@/hooks/useAuth";
+import { useUpdateProfile, useProfile } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { VerificationUpload } from "@/components/VerificationUpload";
@@ -14,6 +14,7 @@ const steps = ["Personal Info", "Service Details", "Portfolio", "Verification"];
 
 const ProviderOnboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const { data: profileData, refetch } = useProfile();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -25,6 +26,21 @@ const ProviderOnboarding = () => {
   });
   const navigate = useNavigate();
   const { mutate: updateProfile, isPending } = useUpdateProfile();
+
+  // Load existing profile details into form fields if they exist
+  useEffect(() => {
+    if (profileData?.data?.user) {
+      setFormData({
+        name: profileData.data.user.name || "",
+        phone: profileData.data.user.phone || "",
+        location: profileData.data.user.profile?.location?.address || "",
+        category: profileData.data.user.providerDetails?.category || "",
+        hourlyRate: profileData.data.user.providerDetails?.hourlyRate?.toString() || "",
+        bio: profileData.data.user.profile?.bio || "",
+        experience: profileData.data.user.providerDetails?.yearsOfExperience?.toString() || "",
+      });
+    }
+  }, [profileData]);
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -217,9 +233,10 @@ const ProviderOnboarding = () => {
               </p>
 
               <PortfolioUpload
-                currentImages={[]}
+                currentImages={profileData?.data?.user?.profile?.portfolio || []}
                 maxImages={6}
                 onUploadComplete={() => {
+                  refetch();
                   toast.success("Photos uploaded! You can add more later from your profile.");
                 }}
               />
@@ -254,7 +271,9 @@ const ProviderOnboarding = () => {
             </div>
 
             <VerificationUpload
+              currentDocs={profileData?.data?.user?.profile?.verification?.documents || []}
               onUploadComplete={() => {
+                refetch();
                 toast.success("Documents uploaded! We'll verify them within 24-48 hours.");
               }}
             />

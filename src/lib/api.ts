@@ -25,7 +25,11 @@ import {
   Receipt,
   Category,
   User,
+  PaymentCard,
+  CreatePaymentCardRequest,
+  AuditLog,
 } from './apiTypes';
+import { getDesignReviewResponse, isDesignReviewMode } from './designReview';
 
 // Use /api in development to leverage Vite proxy
 // In production, VITE_API_URL should be the full backend URL
@@ -61,6 +65,34 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    return this._fetchWithRefresh<T>(endpoint, options, {
+      refreshEndpoint: '/auth/refresh',
+      sessionExpiredMessage: 'Session expired. Please log in again.',
+    });
+  }
+
+  /**
+   * Used exclusively for admin dashboard API calls.
+   * On 401 it refreshes via /admin/auth/refresh (which rotates adminAccessToken)
+   * instead of the normal user refresh endpoint, preventing cross-session
+   * contamination between admin and regular-user cookies.
+   */
+  private async adminRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    return this._fetchWithRefresh<T>(endpoint, options, {
+      refreshEndpoint: '/admin/auth/refresh',
+      sessionExpiredMessage: 'Admin session expired. Please log in to the admin panel again.',
+    });
+  }
+
+  private async _fetchWithRefresh<T>(
+    endpoint: string,
+    options: RequestInit,
+    { refreshEndpoint, sessionExpiredMessage }: { refreshEndpoint: string; sessionExpiredMessage: string },
+  ): Promise<T> {
+    if (isDesignReviewMode) {
+      return getDesignReviewResponse(endpoint, options.method || 'GET') as T;
+    }
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -105,11 +137,11 @@ class ApiClient {
             return await retryResponse.json();
           }
 
-          console.log('Received 401, attempting token refresh...');
+          console.log(`Received 401 on ${endpoint}, attempting token refresh via ${refreshEndpoint}...`);
           isRefreshing = true;
 
           try {
-            const refreshResponse = await fetch(`${this.baseUrl}/auth/refresh`, {
+            const refreshResponse = await fetch(`${this.baseUrl}${refreshEndpoint}`, {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
@@ -127,12 +159,12 @@ class ApiClient {
               return await retryResponse.json();
             } else {
               const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
-              throw new Error(refreshError.message || refreshError.error || 'Session expired. Please log in again.');
+              throw new Error(refreshError.message || refreshError.error || sessionExpiredMessage);
             }
           } catch (error) {
             const refreshFailure = error instanceof Error
               ? error
-              : new Error('Session expired. Please log in again.');
+              : new Error(sessionExpiredMessage);
             onTokenRefreshFailed(refreshFailure);
             throw refreshFailure;
           } finally {
@@ -167,6 +199,7 @@ class ApiClient {
     }
   }
 
+
   // ── Auth ──────────────────────────────────────────────────────────────────
   auth = {
     login: (credentials: LoginRequest) =>
@@ -185,7 +218,7 @@ class ApiClient {
       this.request<ApiResponse<{ message: string }>>('/auth/logout', { method: 'POST' }),
 
     refreshToken: () =>
-      this.request<ApiResponse<{ token: string }>>('/auth/refresh', { method: 'POST' }),
+      this.request<ApiResponse<UserProfileResponse>>('/auth/refresh', { method: 'POST' }),
 
     forgotPassword: (email: string) =>
       this.request<ApiResponse<{ data: string }>>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
@@ -304,6 +337,17 @@ class ApiClient {
       ),
   };
 
+  // Cards
+  cards = {
+    get: () => this.request<ApiResponse<PaymentCard[]>>('/cards'),
+    add: (cardData: CreatePaymentCardRequest) =>
+      this.request<ApiResponse<PaymentCard>>('/cards', { method: 'POST', body: JSON.stringify(cardData) }),
+    setDefault: (cardId: string) =>
+      this.request<ApiResponse<PaymentCard>>(`/cards/${cardId}/default`, { method: 'PUT' }),
+    delete: (cardId: string) =>
+      this.request<ApiResponse<{ message: string }>>(`/cards/${cardId}`, { method: 'DELETE' }),
+  };
+
   // ── Notifications ─────────────────────────────────────────────────────────
   notifications = {
     get: () => this.request<ApiResponse<Notification[]>>('/notifications'),
@@ -357,10 +401,20 @@ class ApiClient {
   reviews = {
     create: (reviewData: CreateReviewRequest) =>
       this.request<ApiResponse<Review>>('/reviews', { method: 'POST', body: JSON.stringify(reviewData) }),
+    getAll: (params?: { search?: string; rating?: number; page?: number; limit?: number }) => {
+      const qp = new URLSearchParams();
+      if (params?.search) qp.append('search', params.search);
+      if (params?.rating) qp.append('rating', String(params.rating));
+      if (params?.page) qp.append('page', String(params.page));
+      if (params?.limit) qp.append('limit', String(params.limit));
+      const qs = qp.toString();
+      return this.request<ApiResponse<Review[]>>(qs ? `/reviews?${qs}` : '/reviews');
+    },
     getByService: (serviceId: string) => this.request<ApiResponse<Review[]>>(`/reviews/service/${serviceId}`),
     getByProvider: (providerId: string) => this.request<ApiResponse<Review[]>>(`/reviews/provider/${providerId}`),
     getByUser: () => this.request<ApiResponse<Review[]>>('/reviews/user'),
     getById: (id: string) => this.request<ApiResponse<Review>>(`/reviews/${id}`),
+    delete: (id: string) => this.request<ApiResponse<{ message: string }>>(`/reviews/${id}`, { method: 'DELETE' }),
   };
 
   // ── Verification ──────────────────────────────────────────────────────────
@@ -371,8 +425,12 @@ class ApiClient {
       const endpoint = userId ? `/verification/${userId}` : '/verification/status';
       return this.request<ApiResponse<VerificationRequest>>(endpoint);
     },
-    getAll: (params?: { status?: string }) => {
-      const endpoint = params?.status ? `/verification/requests?status=${params.status}` : '/verification/requests';
+    getAll: (params?: { status?: string; type?: string }) => {
+      const qp = new URLSearchParams();
+      if (params?.status) qp.append('status', params.status);
+      if (params?.type) qp.append('type', params.type);
+      const qs = qp.toString();
+      const endpoint = qs ? `/verification/requests?${qs}` : '/verification/requests';
       return this.request<ApiResponse<VerificationRequest[]>>(endpoint);
     },
     approve: (id: string) =>
@@ -386,6 +444,12 @@ class ApiClient {
     get: (bookingId: string) => this.request<ApiResponse<Receipt>>(`/receipts/${bookingId}`),
     getDetails: (bookingId: string) => this.request<ApiResponse<Receipt>>(`/receipts/${bookingId}/details`),
     getPdf: async (bookingId: string) => {
+      if (isDesignReviewMode) {
+        return new Blob([`Connectify design review receipt for ${bookingId}`], {
+          type: 'application/pdf',
+        });
+      }
+
       let response = await fetch(`${this.baseUrl}/receipts/${bookingId}/pdf`, {
         method: 'GET',
         credentials: 'include',
@@ -427,7 +491,7 @@ class ApiClient {
         throw new Error(msg);
       }
 
-      return await response.text();
+      return await response.blob();
     },
   };
 
@@ -457,6 +521,17 @@ class ApiClient {
   // ── Upload ────────────────────────────────────────────────────────────────
   upload = {
     profileImage: async (file: File) => {
+      if (isDesignReviewMode) {
+        return {
+          success: true,
+          data: {
+            url: URL.createObjectURL(file),
+            publicId: `design-profile-${Date.now()}`,
+          },
+          message: 'Profile image previewed locally',
+        };
+      }
+
       const formData = new FormData();
       formData.append('image', file);
       const response = await fetch(`${this.baseUrl}/upload/profile-image`, {
@@ -470,6 +545,17 @@ class ApiClient {
     },
 
     portfolio: async (files: File[]) => {
+      if (isDesignReviewMode) {
+        return {
+          success: true,
+          data: files.map((file, index) => ({
+            url: URL.createObjectURL(file),
+            publicId: `design-portfolio-${Date.now()}-${index}`,
+          })),
+          message: 'Portfolio images previewed locally',
+        };
+      }
+
       const formData = new FormData();
       files.forEach(file => formData.append('images', file));
       const response = await fetch(`${this.baseUrl}/upload/portfolio`, {
@@ -483,6 +569,17 @@ class ApiClient {
     },
 
     verification: async (files: File[]) => {
+      if (isDesignReviewMode) {
+        return {
+          success: true,
+          data: files.map((file, index) => ({
+            url: URL.createObjectURL(file),
+            publicId: `design-verification-${Date.now()}-${index}`,
+          })),
+          message: 'Verification documents previewed locally',
+        };
+      }
+
       const formData = new FormData();
       files.forEach(file => formData.append('documents', file));
       const response = await fetch(`${this.baseUrl}/upload/verification`, {
@@ -497,6 +594,44 @@ class ApiClient {
 
     deletePortfolioImage: (publicId: string) =>
       this.request<ApiResponse<{ message: string }>>(`/upload/portfolio/${publicId}`, { method: 'DELETE' }),
+  };
+
+  // ── Analytics (Admin Only) ────────────────────────────────────────────────
+  admin = {
+    auth: {
+      login: (credentials: LoginRequest) =>
+        this.request<ApiResponse<any>>('/admin/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+      logout: () =>
+        this.adminRequest<ApiResponse<any>>('/admin/auth/logout', { method: 'POST' }),
+      getSession: () =>
+        this.adminRequest<ApiResponse<any>>('/admin/auth/session'),
+    },
+    // Stats — served by /analytics/stats, protected by auth + checkRole(['admin'])
+    getStats: () =>
+      this.adminRequest<ApiResponse<any>>('/analytics/stats'),
+    // Audit logs — protected by auth + checkRole(['admin'])
+    getAuditLogs: (params?: { search?: string; entityType?: string; page?: number; limit?: number }) => {
+      const qp = new URLSearchParams();
+      if (params?.search) qp.append('search', params.search);
+      if (params?.entityType) qp.append('entityType', params.entityType);
+      if (params?.page) qp.append('page', String(params.page));
+      if (params?.limit) qp.append('limit', String(params.limit));
+      const qs = qp.toString();
+      return this.adminRequest<ApiResponse<AuditLog[]>>(qs ? `/audit?${qs}` : '/audit');
+    },
+    // User deep-dive summary — admin only
+    getUserSummary: (userId: string) =>
+      this.adminRequest<ApiResponse<any>>(`/users/${userId}/summary`),
+    // All users list — admin only
+    getUsers: (params?: { page?: number; limit?: number; search?: string; role?: string }) => {
+      const qp = new URLSearchParams();
+      if (params?.page) qp.append('page', String(params.page));
+      if (params?.limit) qp.append('limit', String(params.limit));
+      if (params?.search) qp.append('search', params.search);
+      if (params?.role) qp.append('role', params.role);
+      const qs = qp.toString();
+      return this.adminRequest<ApiResponse<User[]>>(qs ? `/users?${qs}` : '/users');
+    },
   };
 
   // ── Location ──────────────────────────────────────────────────────────────
