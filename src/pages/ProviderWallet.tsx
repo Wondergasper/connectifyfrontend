@@ -8,7 +8,8 @@ const ProviderWallet = () => {
   const navigate = useNavigate();
 
   // Fetch wallet data from API
-  const { data: walletBalance, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
+  // API response shape: { success, data: { balance, currency } }
+  const { data: walletData, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
   const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useWalletTransactions();
 
   // Show loading state while fetching data
@@ -57,7 +58,7 @@ const ProviderWallet = () => {
         </button>
         <div className="text-center text-white mb-4">
           <p className="text-white/80 text-sm mb-1">Total Balance</p>
-          <h1 className="text-4xl font-bold drop-shadow-md">{walletBalance?.balance ? `₦${walletBalance.balance.toLocaleString()}` : '₦0'}</h1>
+          <h1 className="text-4xl font-bold drop-shadow-md">{walletData?.data?.balance != null ? `₦${walletData.data.balance.toLocaleString()}` : '₦0'}</h1>
         </div>
         {/* Action Buttons */}
         <div className="flex gap-4 px-6">

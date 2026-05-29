@@ -8,7 +8,8 @@ const CustomerWallet = () => {
   const navigate = useNavigate();
 
   // Fetch wallet data from API
-  const { data: walletBalance, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
+  // API response shape: { success, data: { balance, currency } }
+  const { data: walletData, isLoading: balanceLoading, isError: balanceError } = useWalletBalance();
   const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useWalletTransactions();
 
   // Fallback to mock icons since they're not in API
@@ -71,7 +72,7 @@ const CustomerWallet = () => {
         </button>
         <div className="text-center text-white mb-6">
           <p className="text-white/80 text-sm mb-1">My Wallet</p>
-          <h1 className="text-5xl font-bold mb-1 animate-fade-in">{walletBalance?.balance ? `₦${walletBalance.balance.toLocaleString()}` : '₦0'}</h1>
+          <h1 className="text-5xl font-bold mb-1 animate-fade-in">{walletData?.data?.balance != null ? `₦${walletData.data.balance.toLocaleString()}` : '₦0'}</h1>
           <p className="text-xs opacity-75">Ready for your next booking</p>
         </div>
 

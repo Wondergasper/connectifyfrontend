@@ -98,7 +98,7 @@ const ManageCards = () => {
           ))}
 
           <button
-            onClick={() => navigate('/add-funds?saveCard=true')}
+            onClick={() => navigate('/wallet/add-funds?saveCard=true')}
             className="w-full py-5 rounded-3xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-smooth flex items-center justify-center gap-2 text-muted-foreground hover:text-primary font-medium group bg-card disabled:opacity-60"
           >
             <div className="w-8 h-8 rounded-full bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">

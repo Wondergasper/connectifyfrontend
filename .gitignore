@@ -11,7 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
-
+.playwright-cli/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -36,3 +36,25 @@ quick-start.ps1
 DEPLOYMENT_SUCCESS.md
 DEPLOYMENT_VERIFICATION.md
 URGENT_CORS_FIX.md 
+
+# Build, cache and editor cruft
+.vite/
+.cache/
+.parcel-cache/
+/.turbo/
+storybook-static/
+coverage/
+dist/
+dist-ssr/
+
+# Local env and logs
+.env.local
+.env.*.local
+npm-debug.log*
+pnpm-debug.log*
+
+# Package manager files
+.pnp.*
+.yarn/
+.yarnrc.yml
+pnpm-lock.yaml

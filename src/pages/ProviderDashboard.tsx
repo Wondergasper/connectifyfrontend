@@ -1,7 +1,7 @@
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Calendar, Star, MapPin, Clock, Home, User, CalendarCheck, Wallet, Settings, MessageSquare, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { useBookings } from "@/hooks/useBookings";
 import { useWalletBalance } from "@/hooks/useWallet";
 import { useQuery } from "@tanstack/react-query";
@@ -12,14 +12,26 @@ const ProviderDashboard = () => {
   const navigate = useNavigate();
 
   // Fetch provider profile data to get name and other details
-  const { data: profileData, isLoading: profileLoading } = useProfile();
+  const { data: profileData } = useProfile();
+
+  // Redirect to B2B dashboard if user is a company provider
+  useEffect(() => {
+    const user = profileData?.data?.user;
+    if (user) {
+      const pType = user.providerType || user.providerDetails?.providerType;
+      if (pType === "company") {
+        navigate("/company-provider", { replace: true });
+      }
+    }
+  }, [profileData, navigate]);
 
   // Fetch provider stats and data from API
   const { data: bookingsData, isLoading: bookingsLoading } = useBookings({ type: 'provider' });
-  const { data: walletBalance, isLoading: balanceLoading } = useWalletBalance();
+  // API response shape: { success, data: { balance, currency } }
+  const { data: walletData, isLoading: balanceLoading } = useWalletBalance();
 
   // Fetch provider's reviews to calculate rating
-  const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
+  const { data: reviewsData } = useQuery({
     queryKey: ['reviews', 'provider', profileData?.data?.user?._id],
     queryFn: () => api.reviews.getByProvider(profileData?.data?.user?._id || ''),
     enabled: !!profileData?.data?.user?._id
@@ -31,10 +43,9 @@ const ProviderDashboard = () => {
     ['pending', 'confirmed'].includes(booking.status)
   ).slice(0, 2);
 
-  // Calculate stats from bookings and wallet data
-  const earnings = walletBalance?.balance || 0;
+  // Fix: API returns { success, data: { balance } }, not { balance }
+  const earnings = walletData?.data?.balance ?? 0;
 
-  const totalJobs = allBookings.length;
   const jobsDone = allBookings.filter((booking: { status: string }) =>
     booking.status === 'completed'
   ).length;
@@ -47,8 +58,8 @@ const ProviderDashboard = () => {
   const reviewCount = reviews.length;
 
   const stats = [
-    { label: "Earnings", value: `₦${earnings.toLocaleString()}`, icon: TrendingUp, change: "" }, // Would require historical data to calculate change
-    { label: "Jobs Done", value: jobsDone.toString(), icon: Calendar, change: "" }, // Would require historical data to calculate change
+    { label: "Earnings", value: `₦${earnings.toLocaleString()}`, icon: TrendingUp, change: "" },
+    { label: "Jobs Done", value: jobsDone.toString(), icon: Calendar, change: "" },
     { label: "Rating", value: averageRating, icon: Star, change: `${reviewCount} reviews` },
   ];
 
@@ -191,8 +202,9 @@ const ProviderDashboard = () => {
               <Wallet className="w-5 h-5 text-white" />
             </div>
             <div className="text-sm font-semibold text-foreground">Wallet</div>
+            {/* Fix: API returns { data: { balance } }, not { balance } */}
             <div className="text-xs text-muted-foreground mt-1">
-              ₦{walletBalance?.balance?.toLocaleString() || '0'}
+              ₦{walletData?.data?.balance?.toLocaleString() || '0'}
             </div>
           </button>
           <button

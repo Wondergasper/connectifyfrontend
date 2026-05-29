@@ -138,8 +138,9 @@ const BookingFlow = () => {
     }, {
       onSuccess: (response) => {
         toast.success("Booking created successfully!");
-        if (response.booking?._id) {
-          navigate(`/booking/${response.booking._id}`, { state: { role: "customer" } });
+        const bookingId = response?.booking?._id ?? response?.data?.booking?._id;
+        if (bookingId) {
+          navigate(`/booking/${bookingId}`, { state: { role: "customer" } });
         } else {
           navigate("/bookings");
         }
@@ -405,7 +406,7 @@ const BookingFlow = () => {
                         You need ₦{(servicePrice - walletBalance).toLocaleString()} more.
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => navigate("/add-funds")} className="border-destructive/30 text-destructive hover:bg-destructive hover:text-white">
+                    <Button size="sm" variant="outline" onClick={() => navigate("/wallet/add-funds")} className="border-destructive/30 text-destructive hover:bg-destructive hover:text-white">
                       Add funds
                     </Button>
                   </div>

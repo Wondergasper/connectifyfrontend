@@ -11,6 +11,7 @@ const ForgotPassword = () => {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [devResetUrl, setDevResetUrl] = useState("");
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -18,9 +19,12 @@ const ForgotPassword = () => {
         setLoading(true);
 
         try {
-            await api.auth.forgotPassword(email);
+            const response = await api.auth.forgotPassword(email);
             setSuccess(true);
             toast.success("Reset link sent!");
+            if (response && (response as any).devResetUrl) {
+                setDevResetUrl((response as any).devResetUrl);
+            }
         } catch (error: any) {
             console.error("Forgot password error:", error);
             toast.error(error.message || "Failed to send reset link");
@@ -40,10 +44,30 @@ const ForgotPassword = () => {
                     <p className="text-muted-foreground">
                         We've sent a password reset link to <span className="font-medium text-foreground">{email}</span>
                     </p>
+                    {devResetUrl && (
+                        <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/30 rounded-xl space-y-3 text-left">
+                            <p className="text-xs text-yellow-800 dark:text-yellow-400 font-semibold flex items-center gap-1.5">
+                                🛠️ Local Development Quick Link
+                            </p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Because emails cannot be sent locally without a configured SMTP/Resend verified domain, you can click the button below to directly reset your password:
+                            </p>
+                            <Button
+                                onClick={() => {
+                                    // Extract token from reset URL
+                                    const token = devResetUrl.split("/").pop();
+                                    navigate(`/reset-password/${token}`);
+                                }}
+                                className="w-full h-10 text-xs bg-yellow-600 hover:bg-yellow-500 text-white font-medium shadow-sm border-0"
+                            >
+                                Reset Password Directly
+                            </Button>
+                        </div>
+                    )}
                     <Button
                         onClick={() => navigate("/auth")}
                         variant="outline"
-                        className="w-full"
+                        className="w-full h-12"
                     >
                         Back to Login
                     </Button>

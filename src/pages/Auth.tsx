@@ -121,7 +121,6 @@ const Auth = () => {
           loginData.email = trimmedInput;
         } else {
           // Format phone number for consistent API requests
-          // Remove any non-digit characters except +
           let phone = trimmedInput.replace(/[^\d+]/g, '');
 
           // If it starts with '0', replace with +234 for Nigerian numbers
@@ -129,9 +128,6 @@ const Auth = () => {
             phone = '+234' + phone.substring(1);
           } else if (phone.startsWith('234') && !phone.startsWith('+234')) {
             phone = '+' + phone;
-          } else if (!phone.startsWith('+')) {
-            // If no country code and not starting with 0, assume it's a short format
-            // For Nigeria, we might want to prepend country code, but this depends on requirements
           }
 
           loginData.phone = phone;
@@ -148,7 +144,6 @@ const Auth = () => {
         isHandlingSubmitRedirect.current = true;
 
         // Check if user already has a role and redirect appropriately
-        // The response structure is: { success: true, data: { user: {...} } }
         const userRole = response?.data?.user?.role;
         console.log('User role from response:', userRole);
 
@@ -156,10 +151,6 @@ const Auth = () => {
         await new Promise(resolve => setTimeout(resolve, 300));
 
         // CRITICAL: Set the user data directly in React Query cache
-        // This is BETTER than invalidating because:
-        // 1. No extra API call needed (avoids 401 errors)
-        // 2. No risk of cookies not being set yet
-        // 3. Immediate update to AuthContext
         console.log('📦 Setting user data in cache...');
         queryClient.setQueryData(['profile'], {
           success: true,
@@ -176,7 +167,8 @@ const Auth = () => {
           if (userRole === 'customer') {
             redirectPath = '/customer';
           } else if (userRole === 'provider') {
-            redirectPath = '/provider';
+            const pType = response?.data?.user?.providerType || response?.data?.user?.providerDetails?.providerType;
+            redirectPath = pType === 'company' ? '/company-provider' : '/provider';
           }
         }
 
@@ -217,7 +209,6 @@ const Auth = () => {
         await new Promise(resolve => setTimeout(resolve, 300));
 
         // CRITICAL: Set the user data directly in React Query cache
-        // This ensures AuthContext has the user data before navigating
         console.log('📦 Setting user data in cache after registration...');
         queryClient.setQueryData(['profile'], {
           success: true,
@@ -242,7 +233,6 @@ const Auth = () => {
     } catch (error: unknown) {
       console.error('Auth error:', error);
       let errorMessage = 'Authentication failed';
-
       // For fetch API errors, error.message contains the error from api.ts
       if (error instanceof Error) {
         errorMessage = error.message;

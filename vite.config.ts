@@ -5,7 +5,7 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
   server: {
-    host: "localhost", // Changed to localhost for consistency
+    host: "localhost",
     port: 8080,
     strictPort: false,
     hmr: {
@@ -16,7 +16,7 @@ export default defineConfig(() => ({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://backendconnectify-ah3q.onrender.com',
         changeOrigin: true,
         secure: false,
       },

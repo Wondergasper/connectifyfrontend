@@ -4,8 +4,6 @@ import {
   Search,
   MapPin,
   Star,
-  Clock,
-  TrendingUp,
   Home,
   Wrench,
   Sparkles,
@@ -27,13 +25,12 @@ import { useSearchServices } from "@/hooks/useServices";
 import { useProfile } from "@/hooks/useAuth";
 import { useBookings } from "@/hooks/useBookings";
 import { useWalletBalance } from "@/hooks/useWallet";
-import { toast } from "sonner";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
 
   // Fetch user profile to get name and location
-  const { data: profileData, isLoading: profileLoading } = useProfile();
+  const { data: profileData } = useProfile();
 
   // Fetch categories and featured services/providers from API
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories();
@@ -51,7 +48,8 @@ const CustomerDashboard = () => {
     type: 'customer',
     status: ''
   });
-  const { data: walletBalance, isLoading: balanceLoading } = useWalletBalance();
+  // API response shape: { success, data: { balance, currency } }
+  const { data: walletData, isLoading: balanceLoading } = useWalletBalance();
 
   // Map icons to category names
   const getCategoryIcon = (categoryName: string) => {
@@ -63,7 +61,7 @@ const CustomerDashboard = () => {
       'Beauty': Scissors,
       'Repair': Hammer,
     };
-    return iconMap[categoryName] || Wrench; // Default to Wrench if not found
+    return iconMap[categoryName] || Wrench;
   };
 
   // Calculate stats from API data
@@ -73,6 +71,9 @@ const CustomerDashboard = () => {
   // Filter featured providers from the services data
   const featuredProviders = providersData?.data?.slice(0, 3) || [];
   const categories = categoriesData?.data || [];
+
+  // Wallet balance: API returns { success, data: { balance, currency } }
+  const walletBalance = walletData?.data?.balance ?? 0;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -123,10 +124,7 @@ const CustomerDashboard = () => {
           <div className="grid grid-cols-2 gap-4">
             {bookingsLoading ? (
               Array.from({ length: 2 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="text-center animate-pulse"
-                >
+                <div key={index} className="text-center animate-pulse">
                   <div className="w-10 h-10 rounded-xl bg-muted/50 mx-auto mb-2" />
                   <div className="h-6 bg-muted rounded w-6 mx-auto mb-1" />
                   <div className="h-3 bg-muted rounded w-8 mx-auto" />
@@ -158,7 +156,8 @@ const CustomerDashboard = () => {
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
                       <Wallet className="w-5 h-5 text-primary" />
                     </div>
-                    <div className="text-xl font-bold text-foreground">₦{walletBalance?.balance?.toLocaleString() || '0'}</div>
+                    {/* Fix: API shape is { data: { balance } }, not { balance } */}
+                    <div className="text-xl font-bold text-foreground">₦{walletBalance.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">Balance</div>
                   </button>
                 )}
@@ -345,7 +344,7 @@ const CustomerDashboard = () => {
           </button>
         </div>
       </div>
-    </div >
+    </div>
   );
 };
 

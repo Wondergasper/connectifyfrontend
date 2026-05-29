@@ -21,6 +21,7 @@ const CustomerOnboarding = lazy(() => import("./pages/CustomerOnboarding"));
 const ProviderOnboarding = lazy(() => import("./pages/ProviderOnboarding"));
 const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
 const ProviderDashboard = lazy(() => import("./pages/ProviderDashboard"));
+const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
 const BookingFlow = lazy(() => import("./pages/BookingFlow"));
 const Bookings = lazy(() => import("./pages/Bookings"));
 const ManageBookings = lazy(() => import("./pages/ManageBookings"));
@@ -147,6 +148,7 @@ const AppRoutes = () => {
 
         {/* Protected Routes - Provider */}
         <Route path="/provider" element={<RoleProtectedRoute allowedRoles={['provider', 'admin']}><ProviderDashboard /></RoleProtectedRoute>} />
+        <Route path="/company-provider" element={<RoleProtectedRoute allowedRoles={['provider', 'admin']}><CompanyDashboard /></RoleProtectedRoute>} />
         <Route path="/manage-bookings" element={<RoleProtectedRoute allowedRoles={['provider', 'admin']}><ManageBookings /></RoleProtectedRoute>} />
         <Route path="/availability" element={<RoleProtectedRoute allowedRoles={['provider', 'admin']}><Availability /></RoleProtectedRoute>} />
         <Route path="/wallet/provider" element={<RoleProtectedRoute allowedRoles={['provider', 'admin']}><ProviderWallet /></RoleProtectedRoute>} />
