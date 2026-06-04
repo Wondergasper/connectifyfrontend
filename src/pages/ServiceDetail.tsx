@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useService } from "@/hooks/useServices";
+import ServiceDetailSkeleton from "@/components/ServiceDetailSkeleton";
 
 const ServiceDetail = () => {
   const navigate = useNavigate();
@@ -21,14 +22,7 @@ const ServiceDetail = () => {
   });
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-muted-foreground">Loading service details...</p>
-        </div>
-      </div>
-    );
+    return <ServiceDetailSkeleton />;
   }
 
   if (isError || !serviceData) {
@@ -76,7 +70,7 @@ const ServiceDetail = () => {
       {/* Provider Profile */}
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-start gap-4">
-          <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center text-3xl">
+          <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center text-3xl text-white font-bold shadow-medium">
             {service.provider?.name?.charAt(0) || 'S'}
           </div>
           <div className="flex-1">
@@ -104,15 +98,15 @@ const ServiceDetail = () => {
 
       {/* Pricing Card */}
       <div className="px-6 py-4">
-        <div className="p-5 rounded-2xl bg-card border border-border">
-          <div className="flex items-center justify-between mb-4">
+        <div className="p-5 rounded-2xl bg-card border border-border shadow-soft">
+          <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Starting from</p>
-              <p className="text-3xl font-bold text-foreground">₦{(service.price || 0).toLocaleString()}<span className="text-lg text-muted-foreground">/{service.priceType === 'hourly' ? 'hr' : 'service'}</span></p>
+              <p className="text-3xl font-bold text-foreground">₦{(service.price || 0).toLocaleString()}<span className="text-lg text-muted-foreground font-normal">/{service.priceType === 'hourly' ? 'hr' : 'service'}</span></p>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent/10 border border-accent/20">
               <Clock className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium text-accent">Available</span>
+              <span className="text-sm font-bold text-accent">Available</span>
             </div>
           </div>
         </div>
@@ -120,8 +114,11 @@ const ServiceDetail = () => {
 
       {/* About Section */}
       <div className="px-6 py-4">
-        <h3 className="text-lg font-semibold text-foreground mb-3">About</h3>
-        <p className="text-muted-foreground leading-relaxed">
+        <h3 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+          About
+          <div className="h-1 w-8 bg-primary rounded-full" />
+        </h3>
+        <p className="text-muted-foreground leading-relaxed text-sm">
           {service.description || service.provider?.profile?.bio || "Professional service with years of experience. Specializing in quality work with attention to detail."}
         </p>
       </div>
@@ -129,12 +126,11 @@ const ServiceDetail = () => {
       {/* Services Offered */}
       {service.provider?.providerDetails?.servicesOffered && service.provider.providerDetails.servicesOffered.length > 0 && (
         <div className="px-6 py-4">
-          <h3 className="text-lg font-semibold text-foreground mb-3">Services Offered</h3>
-          <div className="space-y-2">
+          <h3 className="text-lg font-bold text-foreground mb-3">Services Offered</h3>
+          <div className="flex flex-wrap gap-2">
             {service.provider.providerDetails.servicesOffered.map((serviceOffered, index) => (
-              <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30">
-                <div className="w-2 h-2 rounded-full bg-accent" />
-                <span className="text-foreground">{serviceOffered}</span>
+              <div key={index} className="px-4 py-2 rounded-xl bg-muted/50 border border-border text-sm font-medium text-foreground">
+                {serviceOffered}
               </div>
             ))}
           </div>
@@ -144,11 +140,11 @@ const ServiceDetail = () => {
       {/* Portfolio */}
       {service.images && service.images.length > 0 && (
         <div className="px-6 py-4">
-          <h3 className="text-lg font-semibold text-foreground mb-3">Portfolio</h3>
+          <h3 className="text-lg font-bold text-foreground mb-3">Portfolio</h3>
           <div className="grid grid-cols-3 gap-3">
             {service.images.map((image, index) => (
-              <div key={index} className="aspect-square rounded-xl bg-muted flex items-center justify-center">
-                <img src={image} alt={`Portfolio ${index + 1}`} className="w-full h-full object-cover rounded-xl" />
+              <div key={index} className="aspect-square rounded-xl bg-muted overflow-hidden shadow-soft">
+                <img src={image} alt={`Portfolio ${index + 1}`} className="w-full h-full object-cover transition-transform hover:scale-110" />
               </div>
             ))}
           </div>
@@ -157,54 +153,56 @@ const ServiceDetail = () => {
 
       {/* Reviews Section */}
       <div className="px-6 py-4">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-foreground">Reviews ({reviews.length})</h3>
-          <Button variant="outline" size="sm" className="text-xs">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-foreground">Reviews ({reviews.length})</h3>
+          <Button variant="ghost" size="sm" className="text-primary font-bold">
             See all
           </Button>
         </div>
         {reviews.length > 0 ? (
           <div className="space-y-4">
             {reviews.slice(0, 3).map((review, index) => (
-              <div key={index} className="p-4 rounded-xl bg-card border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-xs">
+              <div key={index} className="p-4 rounded-2xl bg-card border border-border shadow-soft">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white font-bold shadow-soft">
                       {review.customer?.name?.charAt(0) || 'C'}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground text-sm">{review.customer?.name || 'Customer'}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(review.createdAt).toLocaleDateString()}</p>
+                      <p className="font-bold text-foreground text-sm">{review.customer?.name || 'Customer'}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{new Date(review.createdAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {[...Array(review.rating)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                  <div className="flex items-center gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className={`w-3.5 h-3.5 ${i < review.rating ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
                     ))}
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{review.comment || 'No comment provided'}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{review.comment || 'No comment provided'}</p>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">No reviews yet. Be the first to review this service!</p>
+          <div className="text-center py-8 bg-muted/20 rounded-2xl border border-dashed border-border">
+            <p className="text-sm text-muted-foreground font-medium">No reviews yet. Be the first!</p>
+          </div>
         )}
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-background/80 backdrop-blur-md border-t border-border">
-        <div className="flex gap-3">
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-background/80 backdrop-blur-md border-t border-border z-20">
+        <div className="flex gap-4 max-w-2xl mx-auto">
           <Button
             variant="outline"
-            className="h-14 flex-1"
+            className="h-14 flex-1 rounded-2xl border-2 font-bold shadow-soft"
             onClick={handleMessage}
           >
             <MessageSquare className="w-5 h-5 mr-2" />
             Message
           </Button>
           <Button
-            className="h-14 flex-[2] bg-accent hover:bg-accent/90 text-white font-semibold"
+            className="h-14 flex-[2] bg-accent hover:bg-accent/90 text-white font-bold text-lg rounded-2xl shadow-glow active:scale-95 transition-all"
             onClick={handleBookService}
           >
             <Calendar className="w-5 h-5 mr-2" />

@@ -11,6 +11,8 @@ import { CalendarView } from '@/components/CalendarView';
 import { BookingFilters, FilterOptions } from '@/components/BookingFilters';
 import { BulkActions, BookingCheckbox } from '@/components/BulkActions';
 import { ReceiptModal } from '@/components/ReceiptModal';
+import BookingListSkeleton from "@/components/BookingListSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const ManageBookings = () => {
   const navigate = useNavigate();
@@ -103,30 +105,13 @@ const ManageBookings = () => {
         </div>
       </div>
 
+// ... later in the component
       {/* Content */}
       <div className="px-6 space-y-4">
         {isLoading ? (
-          Array.from({ length: 2 }).map((_, index) => (
-            <div
-              key={index}
-              className="bg-card rounded-3xl p-5 shadow-soft border border-border animate-pulse"
-            >
-              <div className="flex gap-4 mb-5">
-                <div className="w-14 h-14 rounded-2xl bg-muted flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-3 bg-muted rounded w-1/2"></div>
-                  <div className="h-3 bg-muted rounded w-full"></div>
-                  <div className="h-3 bg-muted rounded w-2/3"></div>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1 h-11 rounded-xl bg-muted"></div>
-                <div className="flex-1 h-11 rounded-xl bg-muted"></div>
-              </div>
-            </div>
-          ))
+          <BookingListSkeleton count={3} />
         ) : (
+// ...
           <>
             {activeTab === "upcoming" && upcomingBookings.map((booking) => (
               <div

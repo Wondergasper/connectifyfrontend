@@ -57,6 +57,18 @@ const onTokenRefreshFailed = (error: Error) => {
   refreshSubscribers = [];
 };
 
+export class ApiError extends Error {
+  public statusCode: number;
+  public errorData: any;
+
+  constructor(message: string, statusCode: number, errorData: any = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.errorData = errorData;
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -113,7 +125,7 @@ class ApiClient {
         // 429 Rate-limit — retry with backoff
         if (response.status === 429) {
           if (attempt >= maxRetries) {
-            throw new Error('Too many requests. Please try again in a few moments.');
+            throw new ApiError('Too many requests. Please try again in a few moments.', 429);
           }
           const retryAfter = response.headers.get('Retry-After');
           const waitMs = Math.min(retryAfter ? parseInt(retryAfter, 10) * 1000 : 1000, 5000);
@@ -132,7 +144,7 @@ class ApiClient {
             const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
             if (!retryResponse.ok) {
               const retryError = await retryResponse.json().catch(() => ({} as ApiErrorResponse));
-              throw new Error(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`);
+              throw new ApiError(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`, retryResponse.status, retryError);
             }
             return await retryResponse.json();
           }
@@ -154,17 +166,17 @@ class ApiClient {
               const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, config);
               if (!retryResponse.ok) {
                 const retryError = await retryResponse.json().catch(() => ({} as ApiErrorResponse));
-                throw new Error(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`);
+                throw new ApiError(retryError.message || retryError.error || `Retry failed: ${retryResponse.status}`, retryResponse.status, retryError);
               }
               return await retryResponse.json();
             } else {
               const refreshError = await refreshResponse.json().catch(() => ({} as ApiErrorResponse));
-              throw new Error(refreshError.message || refreshError.error || sessionExpiredMessage);
+              throw new ApiError(refreshError.message || refreshError.error || sessionExpiredMessage, refreshResponse.status, refreshError);
             }
           } catch (error) {
-            const refreshFailure = error instanceof Error
+            const refreshFailure = error instanceof ApiError
               ? error
-              : new Error(sessionExpiredMessage);
+              : new ApiError(sessionExpiredMessage, 401);
             onTokenRefreshFailed(refreshFailure);
             throw refreshFailure;
           } finally {
@@ -185,7 +197,7 @@ class ApiClient {
           else if (response.status === 404) errorMessage = errorData.error || errorData.message || 'Resource not found.';
           else if (response.status === 500) errorMessage = errorData.error || errorData.message || 'Server error. Please try again later.';
 
-          throw new Error(errorMessage);
+          throw new ApiError(errorMessage, response.status, errorData);
         }
 
         return await response.json();
@@ -193,7 +205,7 @@ class ApiClient {
     } catch (error) {
       console.error(`API request error for ${endpoint}:`, error);
       if (error instanceof TypeError) {
-        throw new Error('Network error. Please check your connection and try again.');
+        throw new ApiError('Network error. Please check your connection and try again.', 0);
       }
       throw error;
     }

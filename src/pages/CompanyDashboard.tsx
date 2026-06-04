@@ -35,7 +35,8 @@ import {
   ChevronRight,
   LogOut,
   Sliders,
-  DollarSign
+  DollarSign,
+  ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -113,6 +114,41 @@ const CompanyDashboard = () => {
   const companyName = user?.providerDetails?.companyName || "Swift Repairs Ltd";
   const contactName = user?.providerDetails?.contactName || "Jane Doe";
   const verificationStatus = "pending"; // Mock for verification screen
+
+  // Form states for B2B settings
+  const [formData, setFormData] = useState({
+    companyName: companyName,
+    contactName: contactName,
+    companyEmail: user?.email || "info@swiftrepairs.com",
+    companyPhone: user?.phone || "+234 803 111 2222",
+    businessAddress: user?.providerDetails?.businessAddress || "14 Admiralty Way, Lekki, Lagos",
+    operatingLocations: user?.providerDetails?.operatingLocations?.join(", ") || "Lekki, Victoria Island, Ikeja",
+    teamSize: user?.providerDetails?.teamSize || "6-15",
+    cacNumber: user?.providerDetails?.cacNumber || "RC-983172"
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    // Map element ids like 'set_company' or 'set_email' to formData keys
+    const fieldMap: { [key: string]: string } = {
+      set_company: 'companyName',
+      set_contact: 'contactName',
+      set_email: 'companyEmail',
+      set_phone: 'companyPhone',
+      set_address: 'businessAddress',
+      set_op_loc: 'operatingLocations',
+      set_team: 'teamSize',
+      set_cac: 'cacNumber'
+    };
+    
+    const fieldName = fieldMap[id];
+    if (fieldName) {
+      setFormData(prev => ({
+        ...prev,
+        [fieldName]: value
+      }));
+    }
+  };
 
   // --- Handlers ---
   const handleAddService = (e: React.FormEvent) => {
@@ -224,139 +260,118 @@ const CompanyDashboard = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row text-foreground overflow-hidden font-sans">
       {/* ========================================================
-          MOBILE NAV HEADER
+          MOBILE NAV HEADER (Hidden on Desktop)
          ======================================================== */}
       <div className="md:hidden flex items-center justify-between px-6 py-4 bg-card border-b border-border shadow-soft z-40 sticky top-0">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white font-bold text-lg shadow-soft">
-            C
-          </div>
+          {activeTab !== "overview" ? (
+            <button 
+              onClick={() => setActiveTab("overview")}
+              className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center border border-border mr-1 transition-smooth"
+            >
+              <ArrowLeft className="w-4 h-4 text-foreground" />
+            </button>
+          ) : (
+            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-white font-bold text-base shadow-soft">
+              C
+            </div>
+          )}
           <div>
             <span className="font-bold text-sm leading-none block">{companyName}</span>
-            <span className="text-[10px] text-primary font-semibold tracking-wider uppercase block">B2B Portal</span>
+            <span className="text-[10px] text-primary font-semibold tracking-wider uppercase block mt-0.5">
+              {activeTab === "overview" ? "B2B Portal" : `${activeTab} view`}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold border-2 border-background shadow-soft">
+            {contactName[0]}
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================
+          DESKTOP SIDEBAR (Hidden on Mobile)
+         ======================================================== */}
+      <div className="hidden md:flex flex-col w-64 bg-card border-r border-border shrink-0 min-h-screen">
+        {/* Sidebar Branding */}
+        <div className="p-6 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white font-bold text-xl shadow-medium">
+              C
+            </div>
+            <div>
+              <h2 className="font-bold text-base leading-tight text-foreground">{companyName}</h2>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Verification Pending</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar Navigation */}
+        <div className="flex-1 p-4 space-y-1.5 overflow-y-auto no-scrollbar">
+          {[
+            { id: "overview", label: "Overview Dashboard", icon: Sliders },
+            { id: "services", label: "Service Management", icon: Briefcase },
+            { id: "leads", label: "B2B Leads Board", icon: Bell, count: newLeadsCount },
+            { id: "quotes", label: "Bids & Quotations", icon: Send, count: pendingQuotesCount },
+            { id: "dispatch", label: "Team Dispatch", icon: Users },
+            { id: "jobs", label: "Job Dispatcher", icon: Calendar, count: activeJobsCount },
+            { id: "finances", label: "Payouts & Billings", icon: Wallet },
+            { id: "reviews", label: "Feedback Reviews", icon: Star },
+            { id: "settings", label: "Profile & Settings", icon: Settings },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-smooth ${
+                activeTab === item.id
+                  ? "gradient-primary text-white shadow-soft"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <item.icon className={`w-4 h-4 ${activeTab === item.id ? "text-white" : "text-primary"}`} />
+                <span>{item.label}</span>
+              </div>
+              {item.count !== undefined && item.count > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  activeTab === item.id ? "bg-white text-primary" : "bg-primary text-white"
+                }`}>
+                  {item.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-border bg-muted/30">
+          <div className="flex items-center gap-3 px-2 py-2 mb-3 rounded-lg bg-card border border-border">
+            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold">
+              {contactName[0]}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold leading-none truncate text-foreground">{contactName}</p>
+              <p className="text-[10px] text-muted-foreground truncate mt-0.5">Corporate Admin</p>
+            </div>
+          </div>
           <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-10 h-10 rounded-xl hover:bg-muted flex items-center justify-center border border-border"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-destructive/25 text-destructive bg-destructive/5 hover:bg-destructive hover:text-white transition-smooth text-xs font-bold"
           >
-            <Menu className="w-5 h-5 text-foreground" />
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out Portal
           </button>
         </div>
       </div>
 
       {/* ========================================================
-          DESKTOP & MOBILE SIDEBAR
-         ======================================================== */}
-      <AnimatePresence>
-        {(isSidebarOpen || true) && (
-          <motion.div
-            className={`fixed inset-y-0 left-0 w-64 bg-card border-r border-border flex flex-col z-50 transform md:relative md:translate-x-0 ${
-              isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-            }`}
-            initial={{ x: -260 }}
-            animate={{ x: 0 }}
-            exit={{ x: -260 }}
-            transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
-          >
-            {/* Sidebar Branding */}
-            <div className="p-6 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center text-white font-bold text-xl shadow-medium">
-                  C
-                </div>
-                <div>
-                  <h2 className="font-bold text-base leading-tight text-foreground">{companyName}</h2>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Verification Pending</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="md:hidden p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Sidebar Navigation */}
-            <div className="flex-1 p-4 space-y-1.5 overflow-y-auto no-scrollbar">
-              {[
-                { id: "overview", label: "Overview Dashboard", icon: Sliders },
-                { id: "services", label: "Service Management", icon: Briefcase },
-                { id: "leads", label: "B2B Leads Board", icon: Bell, count: newLeadsCount },
-                { id: "quotes", label: "Bids & Quotations", icon: Send, count: pendingQuotesCount },
-                { id: "dispatch", label: "Team Dispatch", icon: Users },
-                { id: "jobs", label: "Job Dispatcher", icon: Calendar, count: activeJobsCount },
-                { id: "finances", label: "Payouts & Billings", icon: Wallet },
-                { id: "reviews", label: "Feedback Reviews", icon: Star },
-                { id: "settings", label: "Profile & Settings", icon: Settings },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-smooth ${
-                    activeTab === item.id
-                      ? "gradient-primary text-white shadow-soft"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className={`w-4 h-4 ${activeTab === item.id ? "text-white" : "text-primary"}`} />
-                    <span>{item.label}</span>
-                  </div>
-                  {item.count !== undefined && item.count > 0 && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      activeTab === item.id ? "bg-white text-primary" : "bg-primary text-white"
-                    }`}>
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Sidebar Footer */}
-            <div className="p-4 border-t border-border bg-muted/30">
-              <div className="flex items-center gap-3 px-2 py-2 mb-3 rounded-lg bg-card border border-border">
-                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold">
-                  {contactName[0]}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold leading-none truncate text-foreground">{contactName}</p>
-                  <p className="text-[10px] text-muted-foreground truncate mt-0.5">Corporate Admin</p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-destructive/25 text-destructive bg-destructive/5 hover:bg-destructive hover:text-white transition-smooth text-xs font-bold"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Sign Out Portal
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Backdrop for mobile */}
-      {isSidebarOpen && (
-        <div
-          onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
-        />
-      )}
-
-      {/* ========================================================
           MAIN WORKSPACE CONTENT AREA
          ======================================================== */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 md:p-8 space-y-6">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto p-4 pb-24 md:p-8 space-y-6">
         {/* Top welcome status bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-5">
           <div>
@@ -435,7 +450,7 @@ const CompanyDashboard = () => {
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" className="text-xs border-amber-500/30 hover:bg-amber-500/10 font-bold" onClick={() => setActiveTab("settings")}>
+                  <Button variant="outline" className="w-full sm:w-auto text-xs border-amber-500/30 hover:bg-amber-500/10 font-bold" onClick={() => setActiveTab("settings")}>
                     Review Credentials
                   </Button>
                 </div>
@@ -481,6 +496,14 @@ const CompanyDashboard = () => {
                         <div className="text-[10px] text-muted-foreground mt-0.5">Dispatch staff</div>
                       </button>
 
+                      <button onClick={() => setActiveTab("quotes")} className="p-4 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-smooth text-left">
+                        <div className="w-10 h-10 rounded-lg bg-pink-500 flex items-center justify-center text-white mb-3 shadow-soft">
+                          <Send className="w-5 h-5" />
+                        </div>
+                        <div className="font-bold text-xs">Bids & Quotes</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">Submitted proposals</div>
+                      </button>
+
                       <button onClick={() => setActiveTab("finances")} className="p-4 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-smooth text-left">
                         <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center text-white mb-3 shadow-soft">
                           <Wallet className="w-5 h-5" />
@@ -489,12 +512,20 @@ const CompanyDashboard = () => {
                         <div className="text-[10px] text-muted-foreground mt-0.5">Review payouts</div>
                       </button>
 
+                      <button onClick={() => setActiveTab("reviews")} className="p-4 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-smooth text-left">
+                        <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center text-white mb-3 shadow-soft">
+                          <Star className="w-5 h-5" />
+                        </div>
+                        <div className="font-bold text-xs">Feedback</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">Customer reviews</div>
+                      </button>
+
                       <button onClick={() => setActiveTab("settings")} className="p-4 rounded-xl border border-border bg-muted/40 hover:bg-muted transition-smooth text-left">
                         <div className="w-10 h-10 rounded-lg bg-gray-500 flex items-center justify-center text-white mb-3 shadow-soft">
                           <Settings className="w-5 h-5" />
                         </div>
                         <div className="font-bold text-xs">Settings</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">Company configurations</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">Configurations</div>
                       </button>
                     </CardContent>
                   </Card>
@@ -1465,6 +1496,47 @@ const CompanyDashboard = () => {
             )}
           </motion.div>
         </AnimatePresence>
+      </div>
+
+      {/* ========================================================
+          MOBILE BOTTOM TAB NAVIGATION
+         ======================================================== */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 bg-card/95 backdrop-blur-md border-t border-border pt-2 pb-[calc(10px+env(safe-area-inset-bottom))] px-3 flex justify-around items-center z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.08)]">
+        {[
+          { id: "overview", label: "Home", icon: Sliders },
+          { id: "leads", label: "Leads", icon: Bell, count: newLeadsCount },
+          { id: "dispatch", label: "Dispatch", icon: Users },
+          { id: "finances", label: "Wallet", icon: Wallet },
+          { id: "settings", label: "Settings", icon: Settings },
+        ].map((item) => {
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all relative shrink-0"
+            >
+              <div className={`p-1 rounded-lg transition-all ${isActive ? "bg-primary/10 text-primary scale-110" : "text-muted-foreground hover:text-foreground"}`}>
+                <item.icon className="w-5 h-5" />
+              </div>
+              <span className={`text-[9px] font-extrabold tracking-wide transition-all ${isActive ? "text-primary font-black" : "text-muted-foreground"}`}>
+                {item.label}
+              </span>
+              {item.count !== undefined && item.count > 0 && (
+                <span className="absolute top-0 right-2.5 w-3.5 h-3.5 bg-destructive text-white rounded-full flex items-center justify-center text-[8px] font-bold border border-background animate-pulse">
+                  {item.count}
+                </span>
+              )}
+              {isActive && (
+                <motion.span
+                  layoutId="activeTabDot"
+                  className="absolute bottom-0 w-1 h-1 bg-primary rounded-full"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

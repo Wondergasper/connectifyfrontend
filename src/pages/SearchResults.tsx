@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, SlidersHorizontal, Star, MapPin, User, X, TrendingUp, DollarSign, Shield, Clock } from "lucide-react";
 import { useSearchServices } from "@/hooks/useServices";
 import { toast } from "sonner";
+import ServiceListSkeleton from "@/components/ServiceListSkeleton";
 
 const SearchResults = () => {
   const navigate = useNavigate();
@@ -189,23 +190,7 @@ const SearchResults = () => {
       {/* Results List */}
       <div className="px-6 space-y-4">
         {isLoading ? (
-          // Loading skeletons
-          Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={index}
-              className="w-full p-4 rounded-2xl bg-card border border-border shadow-soft animate-pulse"
-            >
-              <div className="flex gap-4">
-                <div className="w-20 h-20 rounded-xl bg-muted flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-3 bg-muted rounded w-1/2"></div>
-                  <div className="h-3 bg-muted rounded w-2/3"></div>
-                  <div className="h-6 bg-muted rounded w-1/3"></div>
-                </div>
-              </div>
-            </div>
-          ))
+          <ServiceListSkeleton count={4} />
         ) : providers.length > 0 ? (
           // Results
           providers.map((service) => (

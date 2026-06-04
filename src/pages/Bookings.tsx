@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CalendarView } from '@/components/CalendarView';
 import { BookingFilters, FilterOptions } from '@/components/BookingFilters';
 import { ReceiptModal } from '@/components/ReceiptModal';
+import { Skeleton } from "@/components/ui/skeleton";
+import BookingListSkeleton from "@/components/BookingListSkeleton";
 
 const Bookings = () => {
   const [activeTab, setActiveTab] = useState<"upcoming" | "completed">("upcoming");
@@ -58,12 +60,21 @@ const Bookings = () => {
     navigate(`/review/${bookingId}`);
   };
 
+// ... later in the component
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-muted-foreground">Loading bookings...</p>
+      <div className="min-h-screen bg-background pb-6">
+        <div className="gradient-primary px-6 pt-12 pb-20 rounded-b-[3rem] relative overflow-hidden shadow-strong">
+          <div className="mb-2">
+            <Skeleton className="h-10 w-48 bg-white/20 mb-2" />
+            <Skeleton className="h-4 w-64 bg-white/10" />
+          </div>
+        </div>
+        <div className="px-6 -mt-12 relative z-10 mb-6">
+          <Skeleton className="h-16 w-full rounded-2xl shadow-strong" />
+        </div>
+        <div className="px-6 space-y-4">
+          <BookingListSkeleton count={3} />
         </div>
       </div>
     );
