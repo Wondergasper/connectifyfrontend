@@ -2,7 +2,8 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, ChevronRight, User, Bell, Shield, Globe, HelpCircle, LogOut, Moon, LayoutDashboard, BriefcaseBusiness, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useLogout, useUpdateRole, useAuth } from "@/hooks/useAuth";
+import { useLogout, useUpdateRole } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 interface SettingsProps {
