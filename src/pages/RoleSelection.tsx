@@ -12,14 +12,28 @@ const RoleSelection = () => {
   const navigate = useNavigate();
   const { mutate: updateRole, isPending } = useUpdateRole();
 
+  const { user } = useAuth();
+
   const handleContinue = () => {
-    if (selectedRole) {
-      updateRole(selectedRole, {
+    const roleToUse = selectedRole || user?.role;
+    
+    if (roleToUse) {
+      updateRole(roleToUse as string, {
         onSuccess: () => {
-          if (selectedRole === "customer") {
+          if (roleToUse === "customer") {
+            // Customers always go to their onboarding/home
             navigate("/customer-onboarding");
-          } else if (selectedRole === "provider") {
-            navigate("/provider-onboarding");
+          } else if (roleToUse === "provider") {
+            // Check if they are a returning provider who already finished onboarding
+            const hasOnboarded = !!(user?.providerType || user?.providerDetails?.providerType);
+            
+            if (hasOnboarded) {
+              const pType = user?.providerType || user?.providerDetails?.providerType;
+              const path = pType === 'company' ? '/company-provider' : '/provider';
+              navigate(path, { replace: true });
+            } else {
+              navigate("/provider-onboarding");
+            }
           }
         },
         onError: (error: unknown) => {

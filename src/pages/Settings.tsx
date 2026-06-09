@@ -2,7 +2,8 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, ChevronRight, User, Bell, Shield, Globe, HelpCircle, LogOut, Moon, LayoutDashboard, BriefcaseBusiness, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { useLogout } from "@/hooks/useAuth";
+import { useLogout, useUpdateRole, useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface SettingsProps {
   role?: "customer" | "provider" | "admin";
@@ -13,6 +14,29 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const logoutMutation = useLogout();
+  const { mutate: updateRole, isPending: isUpdatingRole } = useUpdateRole();
+  const { user } = useAuth();
+
+  const handleRoleSwitch = (targetRole: "customer" | "provider") => {
+    updateRole(targetRole, {
+      onSuccess: () => {
+        if (targetRole === "customer") {
+          navigate("/customer", { replace: true });
+          toast.success("Switched to Customer mode");
+        } else {
+          // Check if already onboarded as provider
+          const hasOnboarded = !!(user?.providerType || user?.providerDetails?.providerType);
+          if (hasOnboarded) {
+            const pType = user?.providerType || user?.providerDetails?.providerType;
+            navigate(pType === 'company' ? '/company-provider' : '/provider', { replace: true });
+            toast.success("Switched to Provider mode");
+          } else {
+            navigate("/provider-onboarding");
+          }
+        }
+      }
+    });
+  };
 
   const menuItems = [
     {
@@ -48,7 +72,7 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
       icon: BriefcaseBusiness,
       label: "Become a Service Provider",
       subtitle: "Set up services, pricing, and availability",
-      action: () => navigate("/provider-onboarding"),
+      action: () => handleRoleSwitch("provider"),
     });
   }
 
@@ -57,7 +81,7 @@ const Settings = ({ role = "customer" }: SettingsProps) => {
       icon: Home,
       label: "Switch to Customer Mode",
       subtitle: "Browse and book services",
-      action: () => navigate("/customer"),
+      action: () => handleRoleSwitch("customer"),
     });
   }
 
