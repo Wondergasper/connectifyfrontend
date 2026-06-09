@@ -59,7 +59,21 @@ const Auth = () => {
       if (from) {
         navigate(from, { replace: true });
       } else {
-        const path = user.role === 'provider' ? '/provider' : '/customer';
+        // If the user hasn't selected a role yet, always send them to role selection
+        if (!user.role || !user.profile?.roleSelected || (user.role !== 'customer' && user.role !== 'provider' && user.role !== 'admin')) {
+          navigate('/role', { replace: true });
+          return;
+        }
+
+        // Redirect based on their existing role
+        let path = '/customer';
+        if (user.role === 'provider') {
+          const pType = user.providerType || user.providerDetails?.providerType;
+          path = pType === 'company' ? '/company-provider' : '/provider';
+        } else if (user.role === 'admin') {
+          path = '/admin';
+        }
+        
         navigate(path, { replace: true });
       }
     }
@@ -198,7 +212,7 @@ const Auth = () => {
           email: sanitizedEmail,
           phone: formattedPhone,
           password: sanitizedPassword,
-          role: requestedRole || undefined
+          // We no longer pass the role here to force the user to choose on the next screen
         });
 
         console.log('Registration successful:', response);
@@ -218,15 +232,11 @@ const Auth = () => {
         });
 
         console.log('✅ Cache updated with user data');
-        console.log('🔄 Redirecting to role selection...');
+        
+        // Force all new users to select their role manually
+        const onboardingPath = '/role';
 
-        const onboardingPath = requestedRole === 'provider'
-          ? '/provider-onboarding'
-          : requestedRole === 'customer'
-            ? '/customer-onboarding'
-            : '/role';
-
-        console.log('Redirecting after registration:', onboardingPath);
+        console.log('Redirecting after registration to manual role selection:', onboardingPath);
 
         navigate(onboardingPath, { replace: true });
       }
@@ -279,19 +289,6 @@ const Auth = () => {
       {/* Form Container */}
       <div className="flex-1 flex items-center justify-center px-6 pb-12">
         <div className="w-full max-w-sm animate-fade-in">
-          {/* Show user type indicator if coming from CTA */}
-          {userType && !isLogin && (
-            <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/20">
-              <p className="text-sm text-center text-foreground">
-                {userType === 'customer' ? (
-                  <>🎯 <strong>Signing up as a Customer</strong> - Book services & connect with providers</>
-                ) : (
-                  <>💼 <strong>Signing up as a Provider</strong> - Offer your services & grow your business</>
-                )}
-              </p>
-            </div>
-          )}
-
           {/* Toggle */}
           <div className="flex gap-2 mb-8 p-1 bg-muted rounded-xl">
             <button

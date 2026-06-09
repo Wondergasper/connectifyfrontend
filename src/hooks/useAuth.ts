@@ -127,7 +127,10 @@ export const useUpdateRole = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (role: string) => api.auth.updateProfile({ role }),
+    mutationFn: (role: string) => api.auth.updateProfile({ 
+      role, 
+      profile: { roleSelected: true } 
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       toast.success('Role updated successfully');

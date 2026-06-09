@@ -73,6 +73,7 @@ export interface UserProfile {
   avatar?: string;
   bio?: string;
   location?: LocationPoint;
+  roleSelected?: boolean;
   verification?: {
     verified?: boolean;
     documents?: string[];

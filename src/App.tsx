@@ -103,7 +103,12 @@ const RoleProtectedRoute = ({ children, allowedRoles }: { children: React.ReactN
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  if (!allowedRoles.includes(user.role) || !user.profile?.roleSelected) {
+    // If the user has no role at all or hasn't confirmed it yet, send them to role selection
+    if (!user.role || !user.profile?.roleSelected) {
+      return <Navigate to="/role" replace />;
+    }
+    
     // Redirect to their dashboard; admin falls back to customer view
     const redirectPath = user.role === 'admin' ? '/customer' : `/${user.role}`;
     return <Navigate to={redirectPath} replace />;

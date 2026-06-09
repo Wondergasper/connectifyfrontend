@@ -110,7 +110,7 @@ const ProviderOnboarding = () => {
           companyPhone: formData.companyPhone,
           businessAddress: formData.businessAddress,
           operatingLocations: formData.operatingLocations,
-          teamSize: Number(formData.teamSize) || undefined,
+          teamSize: formData.teamSize || undefined,
           cacNumber: formData.cacNumber || undefined,
         };
       } else {
